@@ -6,4 +6,4 @@
 - [ ] Git gud
 - [ ] Parse stuff higher up than statements
 - [ ] `{Pre,Post}-{decrement,increment}` operators?
-- [ ] Explicitly disallow `&&` (a && b is interpreted as a & (&b))
+- [ ] Explicitly disallow `&&` (`a && b` is interpreted as `a & (&b)`)
