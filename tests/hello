@@ -1,0 +1,17 @@
+struct Thing {
+	a: int,
+	b: int,
+}
+
+fn fun() -> int {
+	let t = Thing {
+		a: 1,
+		b: 2,
+	}
+
+	t.a + t.b
+}
+
+fn main() {
+	print f"{fun()}"
+}
