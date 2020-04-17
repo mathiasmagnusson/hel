@@ -36,6 +36,7 @@ impl Lexer {
             keywords.insert("loop",   TokenType::Loop);
             keywords.insert("return", TokenType::Return);
             keywords.insert("print",  TokenType::Print);
+            keywords.insert("balena", TokenType::Print);
             keywords.insert("readln", TokenType::Readln);
             keywords.insert("alloc",  TokenType::Alloc);
             keywords.insert("free",   TokenType::Free);
@@ -183,6 +184,10 @@ impl Lexer {
                         self.eat();
                     }
                 }
+                '=' => {
+                    self.eat();
+                    self.add_token(TokenType::SlashEq)
+                }
                 '*' => {
                     let mut depth = 1;
                     loop {
@@ -202,10 +207,6 @@ impl Lexer {
                             break;
                         }
                     }
-                }
-                '=' => {
-                    self.eat();
-                    self.add_token(TokenType::SlashEq)
                 }
                 _ => self.add_token(TokenType::Slash),
             },

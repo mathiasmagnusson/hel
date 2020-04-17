@@ -1,6 +1,20 @@
 use std::fmt;
 
-use super::{AssignmentOperator, BinaryOperator, Expr, Ident, Literal, Stmt, UnaryOperator};
+use super::{AssignmentOperator, BinaryOperator, Expr, Ident, Literal, Stmt, UnaryOperator, Value};
+
+impl fmt::Display for Value {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            Value::Integer(num) => write!(f, "{}", num)?,
+            Value::String(s) => write!(f, "{}", s)?,
+            Value::Bool(b) => write!(f, "{}", b)?,
+            Value::Pointer(ptr) => write!(f, "<ptr 0x{:x}>", ptr)?,
+            _ => unimplemented!()
+        };
+
+        Ok(())
+    }
+}
 
 impl fmt::Display for Expr {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
@@ -103,6 +117,7 @@ impl fmt::Display for Stmt {
                 body,
             } => write!(f, "for {} in {} {}", i, iter, body)?,
             Stmt::Return(expr) => write!(f, "return {}", expr)?,
+            Stmt::Print(expr) => write!(f, "print {}", expr)?,
             Stmt::Assign {
                 ident,
                 op,
@@ -133,8 +148,8 @@ impl fmt::Display for Literal {
         match self {
             Literal::String(s) => write!(f, "{:?}", s)?,
             Literal::Integer(n) => write!(f, "{}", n)?,
-            Literal::Boolean(true) => write!(f, "true")?,
-            Literal::Boolean(false) => write!(f, "false")?,
+            Literal::Bool(true) => write!(f, "true")?,
+            Literal::Bool(false) => write!(f, "false")?,
             Literal::Null => write!(f, "null")?,
             Literal::This => write!(f, "this")?,
         }

@@ -8,7 +8,7 @@ mod lex;
 mod util;
 
 use lex::{Lexer, TokenStream, TokenType};
-use ast::{Parse, Stmt};
+use ast::{Parse, Eval, Stmt};
 
 fn run(input: &str) {
     let lexer = Lexer::new(input);
@@ -23,9 +23,9 @@ fn run(input: &str) {
         }
     }
 
-    for token in tokens.iter() {
-        println!("{}", token);
-    }
+    // for token in tokens.iter() {
+    //     println!("{}", token);
+    // }
 
     let mut token_stream = TokenStream::from(tokens.as_ref());
 
@@ -42,8 +42,10 @@ fn run(input: &str) {
             },
         }
 
-        println!("{:#?}", stmt);
-        println!("{}", stmt);
+        println!("{}", stmt.eval());
+
+        // println!("{:#?}", stmt);
+        // println!("{}", stmt);
     }
 }
 

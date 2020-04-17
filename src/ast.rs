@@ -2,12 +2,14 @@ use std::fmt;
 
 use crate::lex::{Token, TokenStream};
 
+mod eval;
 mod expr;
 mod op;
 mod parse;
 mod print;
 mod stmt;
 
+pub use eval::{Eval, Value};
 pub use expr::Expr;
 pub use op::{AssignmentOperator, BinaryOperator, UnaryOperator};
 pub use parse::Parse;
@@ -22,7 +24,7 @@ pub struct Ident {
 pub enum Literal {
     String(String),
     Integer(usize),
-    Boolean(bool),
+    Bool(bool),
     Null,
     This,
 }

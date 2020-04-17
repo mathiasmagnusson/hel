@@ -18,10 +18,10 @@ impl Parse for Expr {
         let token = tokens.eat();
         let (mut tokens, mut expr) = match &token.ty {
             TokenType::True => {
-                (tokens, Expr::Lit(Literal::Boolean(true)))
+                (tokens, Expr::Lit(Literal::Bool(true)))
             },
             TokenType::False => {
-                (tokens, Expr::Lit(Literal::Boolean(false)))
+                (tokens, Expr::Lit(Literal::Bool(false)))
             },
             TokenType::Null => {
                 (tokens, Expr::Lit(Literal::Null))
@@ -365,6 +365,13 @@ impl Parse for Stmt {
                 let (tokens, expr) = Expr::parse(tokens)?;
 
                 (tokens, Stmt::Return(expr))
+            },
+            TokenType::Print => {
+                tokens.eat();
+
+                let (tokens, expr) = Expr::parse(tokens)?;
+
+                (tokens, Stmt::Print(expr))
             },
             TokenType::For => {
                 tokens.eat();
