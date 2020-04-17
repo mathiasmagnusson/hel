@@ -1,5 +1,5 @@
 [package]
-name = "vali"
+name = "valiac"
 version = "0.1.0"
 authors = ["mathiasmagnusson <mathiasmagnussons@gmail.com>"]
 edition = "2018"

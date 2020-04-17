@@ -58,7 +58,7 @@ impl Lexer {
         }
 
         self.tokens
-            .push(Token::new(TokenType::EOF, "".into(), self.line));
+            .push(Token::new(TokenType::EOF, String::new(), self.line));
 
         if self.errors.len() > 0 {
             Err(self.errors)
@@ -67,7 +67,7 @@ impl Lexer {
         }
     }
     fn next_token(&mut self) {
-        match self.advance() {
+        match self.eat() {
             '(' => self.add_token(TokenType::LeftParen),
             ')' => self.add_token(TokenType::RightParen),
             '[' => self.add_token(TokenType::LeftSquare),
@@ -79,60 +79,117 @@ impl Lexer {
             ':' => self.add_token(TokenType::Colon),
             ';' => self.add_token(TokenType::Semicolon),
             '?' => self.add_token(TokenType::Quest),
-            '-' => self.add_token(TokenType::Minus),
-            '+' => self.add_token(TokenType::Plus),
-            '%' => self.add_token(TokenType::Percent),
-            '&' => self.add_token(TokenType::Amp),
-            '|' => self.add_token(TokenType::Bar),
-            '^' => self.add_token(TokenType::Caret),
-            '*' => {
-                let ast = self.matches('*');
-                self.add_token(if ast {
-                    TokenType::AsteriskAsterisk
-                } else {
-                    TokenType::Asterisk
-                });
-            }
+            '+' => match self.peek() {
+                '=' => {
+                    self.eat();
+                    self.add_token(TokenType::PlusEq);
+                }
+                _ => self.add_token(TokenType::Plus),
+            },
+            '-' => match self.peek() {
+                '=' => {
+                    self.eat();
+                    self.add_token(TokenType::MinusEq);
+                }
+                _ => self.add_token(TokenType::Minus),
+            },
+            '%' => match self.peek() {
+                '=' => {
+                    self.eat();
+                    self.add_token(TokenType::PercentEq);
+                }
+                _ => self.add_token(TokenType::Percent),
+            },
+            '&' => match self.peek() {
+                '=' => {
+                    self.eat();
+                    self.add_token(TokenType::AmpEq);
+                }
+                '&' => {
+                    self.error("&& operator not allowed. Use 'and' for the logical and operation");
+                }
+                _ => self.add_token(TokenType::Amp),
+            },
+            '|' => match self.peek() {
+                '=' => {
+                    self.eat();
+                    self.add_token(TokenType::BarEq);
+                }
+                _ => self.add_token(TokenType::Bar),
+            },
+            '^' => match self.peek() {
+                '=' => {
+                    self.eat();
+                    self.add_token(TokenType::CaretEq);
+                }
+                _ => self.add_token(TokenType::Caret),
+            },
+            '*' => match self.peek() {
+                '*' => {
+                    self.eat();
+                    match self.peek() {
+                        '=' => {
+                            self.eat();
+                            self.add_token(TokenType::AsteriskAsteriskEq)
+                        }
+                        _ => self.add_token(TokenType::AsteriskAsterisk),
+                    }
+                }
+                '=' => {
+                    self.eat();
+                    self.add_token(TokenType::AsteriskEq)
+                }
+                _ => self.add_token(TokenType::Asterisk),
+            },
             '!' => {
-                let m = self.matches('=');
-                self.add_token(if m { TokenType::BangEq } else { TokenType::Bang });
+                match self.peek() {
+                    '=' => {
+                        self.eat();
+                        self.add_token(TokenType::BangEq)
+                    }
+                    _ => self.add_token(TokenType::Bang),
+                };
             }
             '=' => {
-                let m = self.matches('=');
-                self.add_token(if m {
-                    TokenType::EqualEqual
-                } else {
-                    TokenType::Equal
-                });
+                match self.peek() {
+                    '=' => {
+                        self.eat();
+                        self.add_token(TokenType::EqualEqual)
+                    }
+                    _ => self.add_token(TokenType::Equal),
+                };
             }
             '<' => {
-                let m = self.matches('=');
-                self.add_token(if m {
-                    TokenType::LessEqual
-                } else {
-                    TokenType::Less
-                });
+                match self.peek() {
+                    '=' => {
+                        self.eat();
+                        self.add_token(TokenType::LessEqual)
+                    }
+                    _ => self.add_token(TokenType::Less),
+                };
             }
             '>' => {
-                let m = self.matches('=');
-                self.add_token(if m {
-                    TokenType::GreaterEqual
-                } else {
-                    TokenType::Greater
-                });
-            }
-            '/' => {
-                if self.matches('/') {
-                    while self.peek() != '\n' {
-                        self.advance();
+                match self.peek() {
+                    '=' => {
+                        self.eat();
+                        self.add_token(TokenType::GreaterEqual)
                     }
-                } else if self.matches('*') {
+                    _ => self.add_token(TokenType::Greater),
+                };
+            }
+            '/' => match self.peek() {
+                '/' => {
+                    while self.peek() != '\n' {
+                        self.eat();
+                    }
+                }
+                '*' => {
                     let mut depth = 1;
                     loop {
                         if self.is_eof() {
-                            break self.error("Unterminated multi-line comment");
+                            break self.error("unterminated multi-line comment");
                         }
-                        let a = self.advance();
+                        let a = self.eat();
                         let b = self.peek();
 
                         if (a, b) == ('/', '*') {
@@ -141,14 +198,17 @@ impl Lexer {
                             depth -= 1;
                         }
                         if depth == 0 {
-                            self.advance();
+                            self.eat();
                             break;
                         }
                     }
-                } else {
-                    self.add_token(TokenType::Slash);
                 }
-            }
+                '=' => {
+                    self.eat();
+                    self.add_token(TokenType::SlashEq)
+                }
+                _ => self.add_token(TokenType::Slash),
+            },
             '"' => {
                 self.next_string();
             }
@@ -157,7 +217,7 @@ impl Lexer {
                 let mut literal: Wrapping<usize> = Wrapping::<usize>(p(c));
                 while matches!(self.peek(), '0'..='9') {
                     literal *= Wrapping(10);
-                    literal += Wrapping(p(self.advance()));
+                    literal += Wrapping(p(self.eat()));
                 }
                 self.add_token(TokenType::Integer(literal.0));
             }
@@ -165,9 +225,9 @@ impl Lexer {
             '\n' => {
                 self.line += 1;
             }
-            'a' ..= 'z' | 'A' ..= 'Z' | '_' => {
+            'a'..='z' | 'A'..='Z' | '_' => {
                 while matches!(self.peek(), 'a' ..= 'z' | 'A' ..= 'Z' | '_' | '0' ..= '9') {
-                    self.advance();
+                    self.eat();
                 }
                 let literal: String = self.input[self.start..self.curr].iter().collect();
 
@@ -188,11 +248,11 @@ impl Lexer {
                 self.error("Unterminated string");
                 return;
             }
-            match self.advance() {
+            match self.eat() {
                 '"' => {
                     break;
                 }
-                '\\' => match self.advance() {
+                '\\' => match self.eat() {
                     '"' => literal.push('"'),
                     '\\' => literal.push('\\'),
                     'n' => literal.push('\n'),
@@ -216,18 +276,12 @@ impl Lexer {
     fn is_eof(&self) -> bool {
         self.curr >= self.input.len()
     }
-    fn advance(&mut self) -> char {
-        self.curr += 1;
-        self.input[self.curr - 1]
-    }
-    fn matches(&mut self, expected: char) -> bool {
+    fn eat(&mut self) -> char {
         if self.is_eof() {
-            false
-        } else if self.input[self.curr] == expected {
-            self.curr += 1;
-            true
+            '\0'
         } else {
-            false
+            self.curr += 1;
+            self.input[self.curr - 1]
         }
     }
     fn peek(&self) -> char {
@@ -235,6 +289,13 @@ impl Lexer {
             '\0'
         } else {
             self.input[self.curr]
+        }
+    }
+    fn peek_n(&self, n: usize) -> char {
+        if self.curr + n >= self.input.len() {
+            '\0'
+        } else {
+            self.input[self.curr + n]
         }
     }
     fn add_token(&mut self, ty: TokenType) {
