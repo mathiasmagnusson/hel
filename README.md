@@ -1,9 +1,9 @@
-# valiac - **v**aliac, an **a**trociuos **l**anguage **i**nterpreter **a**nd compiler
+# hel - **h**ella, **e**pic **l**anguage
 
 ## Todo
 - [x] Refactor lexer to use methods like the parser
 - [x] Lex `+=` and other assignment operators
 - [ ] Git gud
 - [ ] Parse stuff higher up than statements
-- [ ] `{Pre,Post}-{decrement,increment}` operators?
-- [x] Explicitly disallow `&&` (`a && b` is interpreted as `a & (&b)`)
+- [ ] Remove `alloc` and `free` as keywords?
+- [ ] Make the lexer an iterator so everything isn't put into a big array

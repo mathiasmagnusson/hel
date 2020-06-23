@@ -10,25 +10,25 @@ pub enum TokenType {
     Quest,
 
     Plus, Minus, Percent,
-    Amp, Bar, Caret,
+    Amp, Dollar, Bar, Caret, BAmp,
     Asterisk, AsteriskAsterisk,
     Bang, BangEq,
     Equal, EqualEqual,
     Greater, GreaterEqual,
     Less, LessEqual,
     PlusEq, MinusEq, PercentEq,
-    AmpEq, BarEq, CaretEq,
+    BAmpEq, BarEq, CaretEq,
     AsteriskEq, AsteriskAsteriskEq, SlashEq,
 
-    Slash, 
+    Slash,
 
     Ident(String), String(String), Integer(usize),
 
     Let, Null,
     And, Or, True, False,
-    Function, Struct, Impl, This,
+    Function, Struct, Impl,
     If, Then, Else, For, In, Loop, Return,
-    Print, Readln, Alloc, Free,
+    Alloc, Free, Defer, Import,
 
     EOF,
 }

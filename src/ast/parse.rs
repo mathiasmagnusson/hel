@@ -1,6 +1,6 @@
 use std::usize;
 
-use super::{BinaryOperator, Error, Expr, Ident, Literal, Stmt, TokenStream, UnaryOperator, AssignmentOperator};
+use super::{BinaryOperator, Error, Expr, Ident, Literal, Stmt, TokenStream, UnaryOperator, AssignmentOperator, File};
 
 use crate::lex::TokenType;
 pub trait Parse: Sized {
@@ -12,6 +12,11 @@ pub trait Parse: Sized {
     }
     fn parse_impl(tokens: TokenStream, prec_lvl: usize) -> Result<(TokenStream, Self), Error>;
 }
+
+// impl Parse for File {
+//     fn parse_impl(tokens: TokenStream, prec_lvl: usize) -> Result<(TokenStream, Self), Error> {
+    // }
+// }
 
 impl Parse for Expr {
     fn parse_impl(mut tokens: TokenStream, prec_lvl: usize) -> Result<(TokenStream, Self), Error> {
@@ -26,9 +31,6 @@ impl Parse for Expr {
             TokenType::Null => {
                 (tokens, Expr::Lit(Literal::Null))
             },
-            TokenType::This => {
-                (tokens, Expr::Lit(Literal::This))
-            },
             TokenType::Ident(val)  => {
                 let ident = Ident { name: val.clone() };
                 if tokens.peek().ty == TokenType::LeftCurly {
@@ -42,7 +44,7 @@ impl Parse for Expr {
                             key.clone()
                         } else {
                             return Err(Error::new(
-                                key.clone(), 
+                                key.clone(),
                                 "Expected identifier".into(),
                             ));
                         };
@@ -120,7 +122,7 @@ impl Parse for Expr {
                                     },
                                     TokenType::RightParen => {},
                                     _ => return Err(Error::new(
-                                        next.clone(), 
+                                        next.clone(),
                                         "Exptected comma or right parenthesis".into()
                                     )),
                                 }
@@ -132,7 +134,7 @@ impl Parse for Expr {
                         },
                         _ => {
                             return Err(Error::new(
-                                right_paren_or_comma.clone(), 
+                                right_paren_or_comma.clone(),
                                 "Expected right parenthesis".into()
                             ));
                         }
@@ -154,7 +156,7 @@ impl Parse for Expr {
                         },
                         TokenType::RightSquare => (),
                         _ => return Err(Error::new(
-                            next.clone(), 
+                            next.clone(),
                             "Expected comma or closing square bracket".into()
                         ))
                     }
@@ -213,7 +215,7 @@ impl Parse for Expr {
             _ => {
                 if let Some(unary_op) = UnaryOperator::new(&token) {
                     let (tokens, expr) = Expr::parse_prec_lvl(
-                        tokens, 
+                        tokens,
                         unary_op.precedence()
                     )?;
 
@@ -238,7 +240,7 @@ impl Parse for Expr {
                     let right_square = tokens.eat();
                     if right_square.ty != TokenType::RightSquare {
                         return Err(Error::new(
-                            right_square.clone(), 
+                            right_square.clone(),
                             "Expected closing square bracket to end indexing".into()
                         ))
                     }
@@ -265,7 +267,7 @@ impl Parse for Expr {
                             },
                             TokenType::RightParen => {},
                             _ => return Err(Error::new(
-                                next.clone(), 
+                                next.clone(),
                                 "Expected comma or right parenthesis".into()
                             ))
                         };
@@ -273,7 +275,7 @@ impl Parse for Expr {
                     let right_paren = tokens.eat();
                     if right_paren.ty != TokenType::RightParen {
                         return Err(Error::new(
-                            right_paren.clone(), 
+                            right_paren.clone(),
                             "Expected right parenthesis".into()
                         ))
                     }
@@ -319,7 +321,7 @@ impl Parse for Stmt {
                     name.clone()
                 } else {
                     return Err(Error::new(
-                        name.clone(), 
+                        name.clone(),
                         "Expected identifier".into(),
                     ));
                 };

@@ -4,6 +4,7 @@ use crate::lex::{Token, TokenStream};
 
 mod eval;
 mod expr;
+mod file;
 mod op;
 mod parse;
 mod print;
@@ -11,6 +12,7 @@ mod stmt;
 
 pub use eval::{Eval, Value};
 pub use expr::Expr;
+pub use file::File;
 pub use op::{AssignmentOperator, BinaryOperator, UnaryOperator};
 pub use parse::Parse;
 pub use stmt::Stmt;

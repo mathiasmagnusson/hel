@@ -8,7 +8,7 @@ mod lex;
 mod util;
 
 use lex::{Lexer, TokenStream, TokenType};
-use ast::{Parse, Eval, Stmt};
+use ast::{Eval, Parse, Stmt};
 
 fn run(input: &str) {
     let lexer = Lexer::new(input);
@@ -42,9 +42,9 @@ fn run(input: &str) {
             },
         }
 
-        println!("{}", stmt.eval());
+        // println!("{}", stmt.eval());
 
-        // println!("{:#?}", stmt);
+        println!("{:#?}", stmt);
         // println!("{}", stmt);
     }
 }

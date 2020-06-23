@@ -35,33 +35,17 @@ impl BinaryOperator {
     pub fn precedence(&self) -> usize {
         use BinaryOperator::*;
         match self {
-            Pow    => 14,
-
-            BitAnd => 12,
-
-            BitXor => 11,
-
-            BitOr  => 10,
-
-            Mod    => 9,
-
-            Mul    => 8,
-            Div    => 8,
-
-            Add    => 6,
-            Sub    => 6,
-
-            Lt     => 5,
-            Le     => 5,
-            Gt     => 5,
-            Ge     => 5,
-
-            Neq    => 4,
-            Eq     => 4,
-
-            And    => 3,
-
-            Or     => 2,
+            Pow               => 14,
+            BitAnd            => 12,
+            BitXor            => 11,
+            BitOr             => 10,
+            Mod               => 9,
+            Mul | Div         => 8,
+            Add | Sub         => 6,
+            Lt | Le | Gt | Ge => 5,
+            Neq | Eq          => 4,
+            And               => 3,
+            Or                => 2,
         }
     }
     pub fn left_assoc(&self) -> bool {
@@ -91,10 +75,8 @@ impl UnaryOperator {
     pub fn precedence(&self) -> usize {
         use UnaryOperator::*;
         match self {
-            Ref   => 14,
-            Deref => 14,
-            Neg   => 13,
-            Abs   => 13,
+            Ref | Deref => 14,
+            Neg | Abs => 13,
             Not   => 14,
         }
     }
@@ -118,7 +100,7 @@ impl AssignmentOperator {
             TokenType::SlashEq            => Some(Div),
             TokenType::PercentEq          => Some(Mod),
             TokenType::AsteriskAsteriskEq => Some(Pow),
-            TokenType::AmpEq              => Some(BitAnd),
+            // TokenType::AmpEq              => Some(BitAnd),
             TokenType::BarEq              => Some(BitOr),
             TokenType::CaretEq            => Some(BitXor),
             _ => None,

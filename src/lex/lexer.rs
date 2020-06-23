@@ -14,7 +14,7 @@ pub struct Lexer {
 }
 
 impl Lexer {
-    #[rustfmt::skip]
+	#[rustfmt::skip]
     pub fn new(input: &str) -> Self {
         let mut keywords = HashMap::new();
         {
@@ -26,8 +26,6 @@ impl Lexer {
             keywords.insert("false",  TokenType::False);
             keywords.insert("fn",     TokenType::Function);
             keywords.insert("struct", TokenType::Struct);
-            keywords.insert("impl",   TokenType::Impl);
-            keywords.insert("this",   TokenType::This);
             keywords.insert("if",     TokenType::If);
             keywords.insert("then",   TokenType::Then);
             keywords.insert("else",   TokenType::Else);
@@ -35,11 +33,10 @@ impl Lexer {
             keywords.insert("in",     TokenType::In);
             keywords.insert("loop",   TokenType::Loop);
             keywords.insert("return", TokenType::Return);
-            keywords.insert("print",  TokenType::Print);
-            keywords.insert("balena", TokenType::Print);
-            keywords.insert("readln", TokenType::Readln);
+            keywords.insert("defer",  TokenType::Defer);
             keywords.insert("alloc",  TokenType::Alloc);
             keywords.insert("free",   TokenType::Free);
+            keywords.insert("import", TokenType::Import);
         }
 
         Self {
@@ -80,6 +77,8 @@ impl Lexer {
             ':' => self.add_token(TokenType::Colon),
             ';' => self.add_token(TokenType::Semicolon),
             '?' => self.add_token(TokenType::Quest),
+            '&' => self.add_token(TokenType::Amp),
+            '$' => self.add_token(TokenType::Dollar),
             '+' => match self.peek() {
                 '=' => {
                     self.eat();
@@ -100,16 +99,6 @@ impl Lexer {
                     self.add_token(TokenType::PercentEq);
                 }
                 _ => self.add_token(TokenType::Percent),
-            },
-            '&' => match self.peek() {
-                '=' => {
-                    self.eat();
-                    self.add_token(TokenType::AmpEq);
-                }
-                '&' => {
-                    self.error("&& operator not allowed. Use 'and' for the logical and operation");
-                }
-                _ => self.add_token(TokenType::Amp),
             },
             '|' => match self.peek() {
                 '=' => {
@@ -141,6 +130,13 @@ impl Lexer {
                     self.add_token(TokenType::AsteriskEq)
                 }
                 _ => self.add_token(TokenType::Asterisk),
+            },
+            '/' => match self.peek() {
+                '=' => {
+                    self.eat();
+                    self.add_token(TokenType::SlashEq)
+                }
+                _ => self.add_token(TokenType::Slash),
             },
             '!' => {
                 match self.peek() {
@@ -178,17 +174,8 @@ impl Lexer {
                     _ => self.add_token(TokenType::Greater),
                 };
             }
-            '/' => match self.peek() {
-                '/' => {
-                    while self.peek() != '\n' {
-                        self.eat();
-                    }
-                }
-                '=' => {
-                    self.eat();
-                    self.add_token(TokenType::SlashEq)
-                }
-                '*' => {
+            '#' => match self.peek() {
+                '(' => {
                     let mut depth = 1;
                     loop {
                         if self.is_eof() {
@@ -197,9 +184,9 @@ impl Lexer {
                         let a = self.eat();
                         let b = self.peek();
 
-                        if (a, b) == ('/', '*') {
+                        if (a, b) == ('#', '(') {
                             depth += 1;
-                        } else if (a, b) == ('*', '/') {
+                        } else if (a, b) == (')', '#') {
                             depth -= 1;
                         }
                         if depth == 0 {
@@ -208,8 +195,10 @@ impl Lexer {
                         }
                     }
                 }
-                _ => self.add_token(TokenType::Slash),
-            },
+                _ => while self.peek() != '\n' {
+                    self.eat();
+                }
+            }
             '"' => {
                 self.next_string();
             }
