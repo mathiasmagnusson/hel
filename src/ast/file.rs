@@ -1,7 +1,8 @@
 use super::Ident;
 
 pub struct File {
-    items: Vec<Item>
+    // TODO: pub is temp
+    pub items: Vec<Item>
 }
 
 pub enum Item {

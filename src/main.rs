@@ -10,7 +10,13 @@ mod util;
 use lex::{Lexer, TokenStream, TokenType};
 use ast::{Eval, Parse, Stmt};
 
-fn run(input: &str) {
+#[derive(PartialEq, Copy, Clone)]
+enum Mode {
+    Lex, Parse, Eval
+}
+
+
+fn run(mode: Mode, input: &str) {
     let lexer = Lexer::new(input);
     let tokens;
     match lexer.tokenize() {
@@ -23,9 +29,12 @@ fn run(input: &str) {
         }
     }
 
-    // for token in tokens.iter() {
-    //     println!("{}", token);
-    // }
+    if mode == Mode::Lex {
+        for token in tokens.iter() {
+            println!("{}", token);
+        }
+        return;
+    }
 
     let mut token_stream = TokenStream::from(tokens.as_ref());
 
@@ -42,10 +51,11 @@ fn run(input: &str) {
             },
         }
 
-        // println!("{}", stmt.eval());
-
-        println!("{:#?}", stmt);
-        // println!("{}", stmt);
+        match mode {
+            Mode::Parse => println!("{:#?}", stmt),
+            Mode::Eval => println!("{}", stmt.eval()),
+            _ => unreachable!(),
+        }
     }
 }
 
@@ -53,19 +63,33 @@ fn repl() -> io::Result<()> {
     let stdin = io::stdin();
     let mut input = String::new();
 
+    print!("(l)ex, (p)arse, or (e)val hel code? ");
+    let mode;
+
+    io::stdout().flush()?;
+    stdin.read_line(&mut input)?;
+    if input.starts_with("l") {
+        mode = Mode::Lex;
+    } else if input.starts_with("p") {
+        mode = Mode::Parse;
+    } else if input.starts_with("e") {
+        mode = Mode::Eval;
+    } else {
+        println!("\nBye then...");
+        return Ok(());
+    }
+
     loop {
         input.clear();
         print!("> ");
         io::stdout().flush()?;
 
-        let bytes = stdin.read_line(&mut input)?;
-
-        if bytes == 0 {
+        if stdin.read_line(&mut input)? == 0 {
             println!("\nExiting");
             return Ok(());
         }
 
-        run(&input);
+        run(mode, &input);
     }
 }
 
@@ -74,7 +98,7 @@ fn main() {
 
     if let Some(filename) = args.get(1) {
         match fs::read_to_string(filename) {
-            Ok(src) => run(&src),
+            Ok(src) => run(Mode::Parse, &src),
             Err(err) => {
                 eprintln!("{}", err);
             }

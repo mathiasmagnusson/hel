@@ -1,6 +1,6 @@
 use std::usize;
 
-use super::{BinaryOperator, Error, Expr, Ident, Literal, Stmt, TokenStream, UnaryOperator, AssignmentOperator, File};
+use super::{BinaryOperator, Error, Expr, Ident, Literal, Stmt, TokenStream, UnaryOperator, AssignmentOperator, File, Token};
 
 use crate::lex::TokenType;
 pub trait Parse: Sized {
@@ -13,10 +13,47 @@ pub trait Parse: Sized {
     fn parse_impl(tokens: TokenStream, prec_lvl: usize) -> Result<(TokenStream, Self), Error>;
 }
 
-// impl Parse for File {
-//     fn parse_impl(tokens: TokenStream, prec_lvl: usize) -> Result<(TokenStream, Self), Error> {
-    // }
-// }
+impl Parse for File {
+    fn parse_impl(mut tokens: TokenStream, _prec_lvl: usize) -> Result<(TokenStream, Self), Error> {
+        // This should just be a loop, parsing items. Further implementation should be in
+        // Item::parse
+
+        let token = tokens.eat();
+
+        let (tokens, file) = match &token.ty {
+            TokenType::Function => {
+                let name = tokens.eat();
+                let name = if let TokenType::Ident(name) = &name.ty {
+                    name.clone()
+                } else {
+                    return Err(Error::new(
+                        name.clone(),
+                        "Expected identifier".into(),
+                    ));
+                };
+
+                // Arguments
+
+                match tokens.eat() {
+                    Token { ty: TokenType::RightArrow, .. } => {}
+                    token => return Err(Error::new(
+                        token.clone(),
+                        "Expected right arrow (->)".into(),
+                    ))
+                }
+
+                // Return type
+
+                (tokens, File { items: vec![] })
+            }
+            _ => {
+                panic!()
+            }
+        };
+
+        Ok((tokens, file))
+    }
+}
 
 impl Parse for Expr {
     fn parse_impl(mut tokens: TokenStream, prec_lvl: usize) -> Result<(TokenStream, Self), Error> {
@@ -368,13 +405,6 @@ impl Parse for Stmt {
 
                 (tokens, Stmt::Return(expr))
             },
-            TokenType::Print => {
-                tokens.eat();
-
-                let (tokens, expr) = Expr::parse(tokens)?;
-
-                (tokens, Stmt::Print(expr))
-            },
             TokenType::For => {
                 tokens.eat();
 
@@ -433,10 +463,6 @@ impl Parse for Stmt {
                 (tokens, Stmt::Expr(expr))
             }
         };
-
-        if tokens.peek().ty == TokenType::Semicolon {
-            tokens.eat();
-        }
 
         Ok((tokens, stmt))
     }

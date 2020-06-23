@@ -41,7 +41,7 @@ impl Eval for Expr {
                 Value::Integer(num) => Value::Integer(num.abs()),
                 _ => unimplemented!(),
             },
-            Expr::Unary { op, right } => unimplemented!(),
+            Expr::Unary { .. } => unimplemented!(),
             Expr::Binary {
                 op,
                 left,

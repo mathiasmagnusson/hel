@@ -14,7 +14,7 @@ pub struct Lexer {
 }
 
 impl Lexer {
-	#[rustfmt::skip]
+    #[rustfmt::skip]
     pub fn new(input: &str) -> Self {
         let mut keywords = HashMap::new();
         {
@@ -75,7 +75,6 @@ impl Lexer {
             ',' => self.add_token(TokenType::Comma),
             '.' => self.add_token(TokenType::Dot),
             ':' => self.add_token(TokenType::Colon),
-            ';' => self.add_token(TokenType::Semicolon),
             '?' => self.add_token(TokenType::Quest),
             '&' => self.add_token(TokenType::Amp),
             '$' => self.add_token(TokenType::Dollar),
@@ -90,6 +89,10 @@ impl Lexer {
                 '=' => {
                     self.eat();
                     self.add_token(TokenType::MinusEq);
+                }
+                '>' => {
+                    self.eat();
+                    self.add_token(TokenType::RightArrow);
                 }
                 _ => self.add_token(TokenType::Minus),
             },

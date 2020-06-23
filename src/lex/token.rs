@@ -6,10 +6,10 @@ pub enum TokenType {
     LeftCurly, RightCurly,
     LeftSquare, RightSquare,
     Comma, Dot,
-    Colon, Semicolon,
+    Colon,
     Quest,
 
-    Plus, Minus, Percent,
+    Plus, Minus, Percent, Slash,
     Amp, Dollar, Bar, Caret, BAmp,
     Asterisk, AsteriskAsterisk,
     Bang, BangEq,
@@ -19,8 +19,7 @@ pub enum TokenType {
     PlusEq, MinusEq, PercentEq,
     BAmpEq, BarEq, CaretEq,
     AsteriskEq, AsteriskAsteriskEq, SlashEq,
-
-    Slash,
+    RightArrow,
 
     Ident(String), String(String), Integer(usize),
 
