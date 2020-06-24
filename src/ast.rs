@@ -3,33 +3,13 @@ use std::fmt;
 use crate::lex::{Token, TokenStream};
 
 mod eval;
-mod expr;
-mod file;
 mod op;
 mod parse;
 mod print;
-mod stmt;
 
 pub use eval::{Eval, Value};
-pub use expr::Expr;
-pub use file::File;
 pub use op::{AssignmentOperator, BinaryOperator, UnaryOperator};
 pub use parse::Parse;
-pub use stmt::Stmt;
-
-#[derive(Debug)]
-pub struct Ident {
-    name: String,
-}
-
-#[derive(Debug)]
-pub enum Literal {
-    String(String),
-    Integer(usize),
-    Bool(bool),
-    Null,
-    This,
-}
 
 #[derive(Debug)]
 pub struct Error {
@@ -52,3 +32,123 @@ impl fmt::Display for Error {
 }
 
 impl std::error::Error for Error {}
+
+#[derive(Debug)]
+pub struct Ident {
+    name: String,
+}
+
+#[derive(Debug)]
+pub enum Literal {
+    String(String),
+    Integer(usize),
+    Bool(bool),
+    Null,
+}
+
+#[derive(Debug)]
+pub struct File {
+    imports: Vec<Import>,
+    functions: Vec<Function>,
+    structs: Vec<Struct>,
+}
+
+#[derive(Debug)]
+pub struct Import {
+    ident: Ident,
+}
+
+#[derive(Debug)]
+pub struct Function {
+    ident: Ident,
+    args: Vec<Argument>,
+    return_type: Type,
+    body: Expr,
+}
+
+#[derive(Debug)]
+pub struct Argument {
+    ident: Ident,
+    ty: Type,
+}
+
+#[derive(Debug)]
+pub enum Type {
+    Ident(Ident),
+    Reference(Box<Type>),
+    Tuple(Vec<Type>),
+    List(Box<Type>), // TODO: fixed big size e.g.: [u64; 16]
+    Function { args: Vec<Type>, ret: Box<Type> },
+}
+
+#[derive(Debug)]
+pub struct Struct {
+    ident: Ident,
+    fields: Vec<Field>,
+}
+
+#[derive(Debug)]
+pub struct Field {
+    name: Ident,
+    ty: Type,
+}
+
+#[derive(Debug)]
+pub enum Stmt {
+    Expr(Expr),
+    Let {
+        ident: Ident,
+        ty: Option<Type>,
+        value: Expr,
+    },
+    For {
+        i: Ident,
+        iter: Expr,
+        body: Box<Stmt>,
+    },
+    Return(Expr),
+    Assign {
+        ident: Ident,
+        op: AssignmentOperator,
+        value: Expr,
+    },
+}
+
+#[derive(Debug)]
+pub enum Expr {
+    Ident(Ident),
+    Lit(Literal),
+    Binary {
+        op: BinaryOperator,
+        left: Box<Expr>,
+        right: Box<Expr>,
+    },
+    Unary {
+        op: UnaryOperator,
+        right: Box<Expr>,
+    },
+    Evoc {
+        func: Box<Expr>,
+        args: Vec<Expr>,
+    },
+    TupleOrArray(Vec<Expr>),
+    Indexing {
+        array: Box<Expr>,
+        index: Box<Expr>,
+    },
+    StructConstruct {
+        ident: Ident,
+        vals: Vec<(Ident, Box<Expr>)>,
+    },
+    If {
+        cond: Box<Expr>,
+        then: Box<Stmt>,
+        els: Option<Box<Stmt>>,
+    },
+    Loop(Box<Expr>),
+    Block(Vec<Stmt>),
+    Closure {
+        args: Vec<Ident>,
+        body: Box<Expr>,
+    }
+}

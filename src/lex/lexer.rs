@@ -34,8 +34,7 @@ impl Lexer {
             keywords.insert("loop",   TokenType::Loop);
             keywords.insert("return", TokenType::Return);
             keywords.insert("defer",  TokenType::Defer);
-            keywords.insert("alloc",  TokenType::Alloc);
-            keywords.insert("free",   TokenType::Free);
+            keywords.insert("copy",   TokenType::Copy);
             keywords.insert("import", TokenType::Import);
         }
 
@@ -76,6 +75,7 @@ impl Lexer {
             '.' => self.add_token(TokenType::Dot),
             ':' => self.add_token(TokenType::Colon),
             '?' => self.add_token(TokenType::Quest),
+            '@' => self.add_token(TokenType::At),
             '&' => self.add_token(TokenType::Amp),
             '$' => self.add_token(TokenType::Dollar),
             '+' => match self.peek() {
@@ -107,6 +107,10 @@ impl Lexer {
                 '=' => {
                     self.eat();
                     self.add_token(TokenType::BarEq);
+                },
+                '>' => {
+                    self.eat();
+                    self.add_token(TokenType::BarGt);
                 }
                 _ => self.add_token(TokenType::Bar),
             },

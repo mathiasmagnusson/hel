@@ -4,7 +4,7 @@ pub enum Value {
     String(String),
     Integer(isize),
     Bool(bool),
-    Pointer(usize),
+    Reference(usize),
 }
 
 pub trait Eval {
@@ -26,7 +26,7 @@ impl Eval for Expr {
             Expr::Lit(Literal::String(s)) => Value::String(s.clone()),
             Expr::Lit(Literal::Integer(number)) => Value::Integer(*number as isize),
             Expr::Lit(Literal::Bool(b)) => Value::Bool(*b),
-            Expr::Lit(Literal::Null) => Value::Pointer(0),
+            Expr::Lit(Literal::Null) => Value::Reference(0),
             Expr::Unary {
                 op: UnaryOperator::Neg,
                 right,
@@ -88,35 +88,35 @@ impl Eval for Expr {
                             (Value::Integer(l), Value::Integer(r)) => Value::Bool(l == r),
                             (Value::Bool(l), Value::Bool(r)) => Value::Bool(l == r),
                             (Value::String(l), Value::String(r)) => Value::Bool(l == r),
-                            (Value::Pointer(l), Value::Pointer(r)) => Value::Bool(l == r),
+                            (Value::Reference(l), Value::Reference(r)) => Value::Bool(l == r),
                             _ => unimplemented!()
                         }
                     }
                     BinaryOperator::Ge => {
                         match (left, right) {
                             (Value::Integer(l), Value::Integer(r)) => Value::Bool(l >= r),
-                            (Value::Pointer(l), Value::Pointer(r)) => Value::Bool(l >= r),
+                            (Value::Reference(l), Value::Reference(r)) => Value::Bool(l >= r),
                             _ => unimplemented!()
                         }
                     }
                     BinaryOperator::Gt => {
                         match (left, right) {
                             (Value::Integer(l), Value::Integer(r)) => Value::Bool(l > r),
-                            (Value::Pointer(l), Value::Pointer(r)) => Value::Bool(l > r),
+                            (Value::Reference(l), Value::Reference(r)) => Value::Bool(l > r),
                             _ => unimplemented!()
                         }
                     }
                     BinaryOperator::Le => {
                         match (left, right) {
                             (Value::Integer(l), Value::Integer(r)) => Value::Bool(l <= r),
-                            (Value::Pointer(l), Value::Pointer(r)) => Value::Bool(l <= r),
+                            (Value::Reference(l), Value::Reference(r)) => Value::Bool(l <= r),
                             _ => unimplemented!()
                         }
                     }
                     BinaryOperator::Lt => {
                         match (left, right) {
                             (Value::Integer(l), Value::Integer(r)) => Value::Bool(l < r),
-                            (Value::Pointer(l), Value::Pointer(r)) => Value::Bool(l < r),
+                            (Value::Reference(l), Value::Reference(r)) => Value::Bool(l < r),
                             _ => unimplemented!()
                         }
                     }

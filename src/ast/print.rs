@@ -1,18 +1,41 @@
 use std::fmt;
 
-use super::{AssignmentOperator, BinaryOperator, Expr, Ident, Literal, Stmt, UnaryOperator, Value};
+use super::{AssignmentOperator, BinaryOperator, Expr, Ident, Literal, Stmt, UnaryOperator, Value, Type};
+
+impl fmt::Display for Type {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            Type::Reference(ty) => write!(f, "&{}", ty),
+            Type::Ident(ident) => write!(f, "{}", ident),
+            Type::Tuple(types) => {
+                write!(f, "[")?;
+                fmt_slice(f, ", ", types)?;
+                write!(f, "]")
+            }
+            Type::List(ty) => write!(f, "[{}]", ty),
+            Type::Function { args, ret } => {
+                write!(f, "fn ")?;
+                if args.len() != 1 {
+                    write!(f, "(")?;
+                }
+                fmt_slice(f, ", ", args)?;
+                if args.len() != 1 {
+                    write!(f, ")")?;
+                }
+                write!(f, " = {}", ret)
+            }
+        }
+    }
+}
 
 impl fmt::Display for Value {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
-            Value::Integer(num) => write!(f, "{}", num)?,
-            Value::String(s) => write!(f, "{}", s)?,
-            Value::Bool(b) => write!(f, "{}", b)?,
-            Value::Pointer(ptr) => write!(f, "<ptr 0x{:x}>", ptr)?,
-            _ => unimplemented!()
-        };
-
-        Ok(())
+            Value::Integer(num) => write!(f, "{}", num),
+            Value::String(s) => write!(f, "{}", s),
+            Value::Bool(b) => write!(f, "{}", b),
+            Value::Reference(ptr) => write!(f, "<ref 0x{:x}>", ptr),
+        }
     }
 }
 
@@ -44,11 +67,8 @@ impl fmt::Display for Expr {
                 fmt_slice(f, ", ", args)?;
                 write!(f, ")")?;
             },
-            Expr::Tuple(items) => {
-                fmt_slice(f, ", ", items)?;
-            },
-            Expr::Array(items) => {
-                write!(f, "[")?;
+            Expr::TupleOrArray(items) => {
+                write!(f, "@[")?;
                 fmt_slice(f, ", ", items)?;
                 write!(f, "]")?;
             },
@@ -63,7 +83,7 @@ impl fmt::Display for Expr {
                 }
                 write!(f, "[{}]", index)?;
             },
-            Expr::Struct {
+            Expr::StructConstruct {
                 ident,
                 vals,
             } => {
@@ -83,6 +103,23 @@ impl fmt::Display for Expr {
                     write!(f, " else {}", els)?;
                 }
             },
+            Expr::Closure {
+                args,
+                body,
+            } => {
+                write!(f, "fn ")?;
+                if args.len() != 1 {
+                    write!(f, "(")?;
+                }
+                fmt_slice(f, ", ", args)?;
+                if args.len() != 1 {
+                    write!(f, ")")?;
+                }
+                if !matches!(body.as_ref(), Expr::Block(_)) {
+                    write!(f, " =")?;
+                }
+                write!(f, "{}", body)?;
+            }
             Expr::Loop(body) => write!(f, "loop {}", body)?,
             Expr::Block(block) => {
                 write!(f, "{{ ")?;
@@ -117,7 +154,6 @@ impl fmt::Display for Stmt {
                 body,
             } => write!(f, "for {} in {} {}", i, iter, body)?,
             Stmt::Return(expr) => write!(f, "return {}", expr)?,
-            Stmt::Print(expr) => write!(f, "print {}", expr)?,
             Stmt::Assign {
                 ident,
                 op,
@@ -151,7 +187,6 @@ impl fmt::Display for Literal {
             Literal::Bool(true) => write!(f, "true")?,
             Literal::Bool(false) => write!(f, "false")?,
             Literal::Null => write!(f, "null")?,
-            Literal::This => write!(f, "this")?,
         }
 
         Ok(())
@@ -177,23 +212,24 @@ impl fmt::Display for BinaryOperator {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         #[rustfmt::skip]
         write!(f, "{}", match self {
-            BinaryOperator::Add    => "+",
-            BinaryOperator::Sub    => "-",
-            BinaryOperator::Mul    => "*",
-            BinaryOperator::Div    => "/",
-            BinaryOperator::Mod    => "%",
-            BinaryOperator::Pow    => "**",
-            BinaryOperator::BitAnd => "&",
-            BinaryOperator::BitOr  => "|",
-            BinaryOperator::BitXor => "^",
-            BinaryOperator::And    => "and",
-            BinaryOperator::Or     => "or",
-            BinaryOperator::Eq     => "==",
-            BinaryOperator::Neq    => "!=",
-            BinaryOperator::Lt     => "<",
-            BinaryOperator::Le     => "<=",
-            BinaryOperator::Gt     => ">",
-            BinaryOperator::Ge     => ">=",
+            BinaryOperator::MethodCall => "|>",
+            BinaryOperator::Add        => "+",
+            BinaryOperator::Sub        => "-",
+            BinaryOperator::Mul        => "*",
+            BinaryOperator::Div        => "/",
+            BinaryOperator::Mod        => "%",
+            BinaryOperator::Pow        => "**",
+            BinaryOperator::BitAnd     => "&",
+            BinaryOperator::BitOr      => "|",
+            BinaryOperator::BitXor     => "^",
+            BinaryOperator::And        => "and",
+            BinaryOperator::Or         => "or",
+            BinaryOperator::Eq         => "==",
+            BinaryOperator::Neq        => "!=",
+            BinaryOperator::Lt         => "<",
+            BinaryOperator::Le         => "<=",
+            BinaryOperator::Gt         => ">",
+            BinaryOperator::Ge         => ">=",
         })?;
 
         Ok(())
@@ -211,9 +247,9 @@ impl fmt::Display for AssignmentOperator {
             AssignmentOperator::Div => "/=",
             AssignmentOperator::Mod => "%=",
             AssignmentOperator::Pow => "**=",
-            AssignmentOperator::BitAnd => "&=",
-            AssignmentOperator::BitOr => "|=",
-            AssignmentOperator::BitXor => "^=",
+            // AssignmentOperator::BitAnd => "&=",
+            // AssignmentOperator::BitOr => "|=",
+            // AssignmentOperator::BitXor => "^=",
         })?;
 
         Ok(())

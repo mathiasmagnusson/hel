@@ -1,6 +1,9 @@
 use std::usize;
 
-use super::{BinaryOperator, Error, Expr, Ident, Literal, Stmt, TokenStream, UnaryOperator, AssignmentOperator, File, Token};
+use super::{
+    Argument, AssignmentOperator, BinaryOperator, Error, Expr, Field, File, Function, Ident,
+    Import, Literal, Stmt, Struct, TokenStream, Type, UnaryOperator,
+};
 
 use crate::lex::TokenType;
 pub trait Parse: Sized {
@@ -15,43 +18,268 @@ pub trait Parse: Sized {
 
 impl Parse for File {
     fn parse_impl(mut tokens: TokenStream, _prec_lvl: usize) -> Result<(TokenStream, Self), Error> {
-        // This should just be a loop, parsing items. Further implementation should be in
-        // Item::parse
-
-        let token = tokens.eat();
-
-        let (tokens, file) = match &token.ty {
-            TokenType::Function => {
-                let name = tokens.eat();
-                let name = if let TokenType::Ident(name) = &name.ty {
-                    name.clone()
-                } else {
-                    return Err(Error::new(
-                        name.clone(),
-                        "Expected identifier".into(),
-                    ));
-                };
-
-                // Arguments
-
-                match tokens.eat() {
-                    Token { ty: TokenType::RightArrow, .. } => {}
-                    token => return Err(Error::new(
-                        token.clone(),
-                        "Expected right arrow (->)".into(),
-                    ))
-                }
-
-                // Return type
-
-                (tokens, File { items: vec![] })
-            }
-            _ => {
-                panic!()
-            }
+        let mut file = File {
+            imports: vec![],
+            structs: vec![],
+            functions: vec![],
         };
 
+        loop {
+            let token = tokens.eat();
+
+            match &token.ty {
+                TokenType::Import => {
+                    let ident = tokens.eat();
+                    if let TokenType::Ident(ident) = &ident.ty {
+                        file.imports.push(Import {
+                            ident: Ident {
+                                name: ident.clone(),
+                            },
+                        })
+                    }
+                }
+                TokenType::Function => {
+                    let ident = tokens.eat();
+                    let ident = if let TokenType::Ident(ident) = &ident.ty {
+                        Ident {
+                            name: ident.clone(),
+                        }
+                    } else {
+                        return Err(Error::new(ident.clone(), "Expected identifier".into()));
+                    };
+
+                    let left_paren = tokens.eat();
+                    if left_paren.ty != TokenType::LeftParen {
+                        return Err(Error::new(
+                            left_paren.clone(),
+                            "Expected opening parenthesis".into(),
+                        ));
+                    }
+
+                    let mut args = vec![];
+                    while tokens.peek().ty != TokenType::RightParen {
+                        let arg_name = tokens.eat();
+                        let arg_name = if let TokenType::Ident(arg_name) = &arg_name.ty {
+                            Ident {
+                                name: arg_name.clone(),
+                            }
+                        } else {
+                            return Err(Error::new(arg_name.clone(), "Expected identifier".into()));
+                        };
+
+                        let colon = tokens.eat();
+                        if colon.ty != TokenType::Colon {
+                            return Err(Error::new(colon.clone(), "Expected colon".into()));
+                        }
+
+                        let (new_tokens, ty) = Type::parse(tokens)?;
+                        tokens = new_tokens;
+
+                        args.push(Argument {
+                            ident: arg_name,
+                            ty,
+                        });
+
+                        let next = tokens.peek();
+                        match next.ty {
+                            TokenType::Comma => {
+                                tokens.eat();
+                            }
+                            TokenType::RightParen => (),
+                            _ => {
+                                return Err(Error::new(
+                                    next.clone(),
+                                    "Expected comma or closing parenthesis".into(),
+                                ))
+                            }
+                        }
+                    }
+
+                    let right_paren = tokens.eat();
+                    if right_paren.ty != TokenType::RightParen {
+                        return Err(Error::new(
+                            right_paren.clone(),
+                            "Expected closing parenthesis".into(),
+                        ));
+                    }
+
+                    let (new_tokens, return_type) = if tokens.peek().ty == TokenType::RightArrow {
+                        tokens.eat();
+
+                        let (tokens, return_type) = Type::parse(tokens)?;
+
+                        (tokens, return_type)
+                    } else {
+                        (tokens, Type::Tuple(vec![]))
+                    };
+                    tokens = new_tokens;
+
+                    let has_equal = tokens.peek().ty == TokenType::Equal;
+                    if has_equal {
+                        tokens.eat();
+                    }
+
+                    let (new_tokens, body) = Expr::parse(tokens)?;
+                    if has_equal && matches!(body, Expr::Block(_)) {
+                        return Err(Error::new(
+                            tokens.peek().clone(),
+                            "Function bodies starting with '= {' are hella ugly, remove the '='"
+                                .into(),
+                        ));
+                    }
+                    tokens = new_tokens; // NOTE: dont move this before the if-statement above
+
+                    file.functions.push(Function {
+                        ident,
+                        args,
+                        return_type,
+                        body,
+                    })
+                }
+                TokenType::Struct => {
+                    let ident = tokens.eat();
+                    let ident = if let TokenType::Ident(ident) = &ident.ty {
+                        Ident {
+                            name: ident.clone(),
+                        }
+                    } else {
+                        return Err(Error::new(ident.clone(), "Expected identifier".into()));
+                    };
+
+                    let left_curly = tokens.eat();
+                    if left_curly.ty != TokenType::LeftCurly {
+                        return Err(Error::new(
+                            left_curly.clone(),
+                            "Expected opening curly bracket".into(),
+                        ));
+                    }
+
+                    let mut fields = vec![];
+
+                    while tokens.peek().ty != TokenType::RightCurly {
+                        let name = tokens.eat();
+                        let name = if let TokenType::Ident(name) = &name.ty {
+                            Ident { name: name.clone() }
+                        } else {
+                            return Err(Error::new(name.clone(), "Expected identifier".into()));
+                        };
+
+                        let colon = tokens.eat();
+                        if colon.ty != TokenType::Colon {
+                            return Err(Error::new(colon.clone(), "Expected colon".into()));
+                        }
+
+                        let (new_tokens, ty) = Type::parse(tokens)?;
+                        tokens = new_tokens;
+
+                        // fields.push(Field{ Ident { name: key }, box value });
+                        fields.push(Field { name, ty });
+
+                        let next = tokens.peek();
+                        match next.ty {
+                            TokenType::Comma => {
+                                tokens.eat();
+                            }
+                            TokenType::RightCurly => {}
+                            _ => {
+                                return Err(Error::new(
+                                    next.clone(),
+                                    "Expected comma or right curly bracket".into(),
+                                ))
+                            }
+                        }
+                    }
+                    tokens.eat();
+
+                    file.structs.push(Struct { ident, fields });
+                }
+                TokenType::EOF => break,
+                _ => {
+                    return Err(Error::new(
+                        token.clone(),
+                        "Expected import, function or struct definition".into(),
+                    ))
+                }
+            };
+        }
+
         Ok((tokens, file))
+    }
+}
+
+impl Parse for Type {
+    fn parse_impl(mut tokens: TokenStream, _prec_lvl: usize) -> Result<(TokenStream, Self), Error> {
+        let token = tokens.eat();
+        let (tokens, ty) = match &token.ty {
+            TokenType::Ident(val) => {
+                let ident = Ident { name: val.clone() };
+                (tokens, Type::Ident(ident))
+            }
+            TokenType::Amp => {
+                let (tokens, inner) = Type::parse(tokens)?;
+                (tokens, Type::Reference(box inner))
+            }
+            TokenType::LeftSquare => {
+                let mut types = vec![];
+                while tokens.peek().ty != TokenType::RightSquare {
+                    let (new_tokens, ty) = Type::parse(tokens)?;
+                    tokens = new_tokens;
+
+                    types.push(ty);
+
+                    let next = tokens.peek();
+                    match next.ty {
+                        TokenType::Comma => {
+                            tokens.eat();
+                        }
+                        TokenType::RightSquare => (),
+                        _ => {
+                            return Err(Error::new(
+                                next.clone(),
+                                "Expected comma or closing square bracket".into(),
+                            ))
+                        }
+                    }
+                }
+                tokens.eat(); // ]
+
+                if types.len() == 1 {
+                    (tokens, Type::List(box types.into_iter().next().unwrap())) // == types[0]
+                } else {
+                    (tokens, Type::Tuple(types))
+                }
+            }
+            TokenType::Function => {
+                let (mut tokens, args) = if tokens.peek().ty == TokenType::LeftParen {
+                    let (tokens, args) = Type::parse(tokens)?;
+                    let args = match args {
+                        Type::Tuple(args) => args,
+                        _ => unreachable!(),
+                    };
+
+                    (tokens, args)
+                } else {
+                    let (tokens, arg) = Type::parse(tokens)?;
+                    (tokens, vec![arg])
+                };
+
+                let (new_tokens, ret) = if tokens.peek().ty == TokenType::RightArrow {
+                    tokens.eat();
+
+                    let (tokens, return_type) = Type::parse(tokens)?;
+
+                    (tokens, box return_type)
+                } else {
+                    (tokens, box Type::Tuple(vec![]))
+                };
+                tokens = new_tokens;
+
+                (tokens, Type::Function { args, ret })
+            }
+            _ => return Err(Error::new(token.clone(), "Expected type".into())),
+        };
+
+        Ok((tokens, ty))
     }
 }
 
@@ -59,19 +287,75 @@ impl Parse for Expr {
     fn parse_impl(mut tokens: TokenStream, prec_lvl: usize) -> Result<(TokenStream, Self), Error> {
         let token = tokens.eat();
         let (mut tokens, mut expr) = match &token.ty {
-            TokenType::True => {
-                (tokens, Expr::Lit(Literal::Bool(true)))
-            },
-            TokenType::False => {
-                (tokens, Expr::Lit(Literal::Bool(false)))
-            },
-            TokenType::Null => {
-                (tokens, Expr::Lit(Literal::Null))
-            },
-            TokenType::Ident(val)  => {
+            TokenType::True => (tokens, Expr::Lit(Literal::Bool(true))),
+            TokenType::False => (tokens, Expr::Lit(Literal::Bool(false))),
+            TokenType::Null => (tokens, Expr::Lit(Literal::Null)),
+            TokenType::Function => {
+                let has_parens = tokens.peek().ty == TokenType::LeftParen;
+                if has_parens {
+                    tokens.eat(); // (
+                }
+
+                let mut args = vec![];
+                while tokens.peek().ty != TokenType::RightParen {
+                    let arg = tokens.eat();
+                    let arg = match &arg.ty {
+                        TokenType::Ident(ident) => ident.clone(),
+                        _ => return Err(Error::new(arg.clone(), "Expected identifier".into())),
+                    };
+
+                    args.push(Ident { name: arg });
+
+                    if !has_parens {
+                        break;
+                    }
+
+                    let next = tokens.peek();
+                    match next.ty {
+                        TokenType::Comma => {
+                            tokens.eat();
+                        }
+                        TokenType::RightParen => (),
+                        _ => {
+                            return Err(Error::new(
+                                next.clone(),
+                                "Expected comma or closing parenthesis".into(),
+                            ))
+                        }
+                    }
+                }
+
+                if has_parens {
+                    let right_paren = tokens.eat();
+                    if right_paren.ty != TokenType::RightParen {
+                        return Err(Error::new(
+                            right_paren.clone(),
+                            "Expected closing parenthesis".into(),
+                        ));
+                    }
+                }
+
+                let equal = tokens.eat();
+                if equal.ty != TokenType::Equal {
+                    return Err(Error::new(equal.clone(), "Expected equal sign (=)".into()));
+                }
+
+                let (tokens, body) = Expr::parse(tokens)?;
+
+                (
+                    tokens,
+                    Expr::Closure {
+                        args,
+                        body: box body,
+                    },
+                )
+            }
+            TokenType::Ident(val) => {
                 let ident = Ident { name: val.clone() };
-                if tokens.peek().ty == TokenType::LeftCurly {
-                    tokens.eat();
+                if tokens.peek().ty == TokenType::At && tokens.peek_n(1).ty == TokenType::LeftCurly
+                {
+                    tokens.eat(); // @
+                    tokens.eat(); // {
 
                     let mut vals = vec![];
 
@@ -80,105 +364,71 @@ impl Parse for Expr {
                         let key = if let TokenType::Ident(key) = &key.ty {
                             key.clone()
                         } else {
-                            return Err(Error::new(
-                                key.clone(),
-                                "Expected identifier".into(),
-                            ));
+                            return Err(Error::new(key.clone(), "Expected identifier".into()));
                         };
 
                         let colon = tokens.eat();
                         if colon.ty != TokenType::Colon {
-                            return Err(Error::new(
-                                colon.clone(),
-                                "Expected colon".into(),
-                            ));
+                            return Err(Error::new(colon.clone(), "Expected colon".into()));
                         }
 
                         let (new_tokens, value) = Expr::parse(tokens)?;
                         tokens = new_tokens;
 
-                        vals.push((
-                            Ident { name: key },
-                            box value
-                        ));
+                        vals.push((Ident { name: key }, box value));
 
                         let next = tokens.peek();
                         match next.ty {
                             TokenType::Comma => {
                                 tokens.eat();
-                            },
-                            TokenType::RightCurly => {},
-                            _ => return Err(Error::new(
-                                next.clone(),
-                                "Expected comma or right curly bracket".into()
-                            ))
+                            }
+                            TokenType::RightCurly => {}
+                            _ => {
+                                return Err(Error::new(
+                                    next.clone(),
+                                    "Expected comma or right curly bracket".into(),
+                                ))
+                            }
                         }
                     }
+                    tokens.eat(); // right curly
 
-                    tokens.eat();
-
-                    (tokens, Expr::Struct {
-                        ident,
-                        vals,
-                    })
+                    (tokens, Expr::StructConstruct { ident, vals })
                 } else {
                     let expr = Expr::Ident(ident);
                     (tokens, expr)
                 }
-            },
+            }
             TokenType::String(val) => {
                 let expr = Expr::Lit(Literal::String(val.clone()));
                 (tokens, expr)
-            },
+            }
             TokenType::Integer(val) => {
                 let expr = Expr::Lit(Literal::Integer(*val));
                 (tokens, expr)
-            },
+            }
             TokenType::LeftParen => {
-                if tokens.peek().ty == TokenType::RightParen {
-                    tokens.eat();
+                let (mut tokens, expr) = Expr::parse(tokens)?;
 
-                    (tokens, Expr::Tuple(vec![]))
-                } else {
-                    let (mut tokens, expr) = Expr::parse(tokens)?;
-
-                    let right_paren_or_comma = tokens.eat();
-                    match right_paren_or_comma.ty {
-                        TokenType::RightParen => (tokens, expr),
-                        TokenType::Comma => {
-                            let mut items = vec![expr];
-                            while tokens.peek().ty != TokenType::RightParen {
-                                let (new_tokens, item) = Expr::parse(tokens)?;
-                                tokens = new_tokens;
-                                items.push(item);
-
-                                let next = tokens.peek();
-                                match next.ty {
-                                    TokenType::Comma => {
-                                        tokens.eat();
-                                    },
-                                    TokenType::RightParen => {},
-                                    _ => return Err(Error::new(
-                                        next.clone(),
-                                        "Exptected comma or right parenthesis".into()
-                                    )),
-                                }
-                            }
-
-                            tokens.eat();
-
-                            (tokens, Expr::Tuple(items))
-                        },
-                        _ => {
-                            return Err(Error::new(
-                                right_paren_or_comma.clone(),
-                                "Expected right parenthesis".into()
-                            ));
-                        }
-                    }
+                let right_paren = tokens.eat();
+                if right_paren.ty != TokenType::RightParen {
+                    return Err(Error::new(
+                        right_paren.clone(),
+                        "Expected closing parenthesis".into(),
+                    ));
                 }
-            },
-            TokenType::LeftSquare => {
+
+                (tokens, expr)
+            }
+            TokenType::At => {
+                let left_square = tokens.eat();
+                if left_square.ty != TokenType::LeftSquare {
+                    return Err(Error::new(
+                        left_square.clone(),
+                        "Expected opening square bracket".into(),
+                    ));
+                }
+
                 let mut items = vec![];
 
                 while tokens.peek().ty != TokenType::RightSquare {
@@ -188,31 +438,33 @@ impl Parse for Expr {
 
                     let next = tokens.peek();
                     match next.ty {
-                        TokenType::Comma =>  {
+                        TokenType::Comma => {
                             tokens.eat();
-                        },
+                        }
                         TokenType::RightSquare => (),
-                        _ => return Err(Error::new(
-                            next.clone(),
-                            "Expected comma or closing square bracket".into()
-                        ))
+                        _ => {
+                            return Err(Error::new(
+                                next.clone(),
+                                "Expected comma or closing square bracket".into(),
+                            ))
+                        }
                     }
                 }
                 let right_square = tokens.eat();
                 if right_square.ty != TokenType::RightSquare {
                     return Err(Error::new(
                         right_square.clone(),
-                        "Expected closing square bracket".into()
-                    ))
+                        "Expected closing square bracket".into(),
+                    ));
                 }
 
-                (tokens, Expr::Array(items))
-            },
+                (tokens, Expr::TupleOrArray(items))
+            }
             TokenType::Loop => {
                 let (tokens, body) = Expr::parse(tokens)?;
 
                 (tokens, Expr::Loop(box body))
-            },
+            }
             TokenType::LeftCurly => {
                 let mut stmts = vec![];
 
@@ -228,7 +480,7 @@ impl Parse for Expr {
                 }
 
                 (tokens, Expr::Block(stmts))
-            },
+            }
             TokenType::If => {
                 let (mut tokens, cond) = Expr::parse(tokens)?;
                 if tokens.peek().ty == TokenType::Then {
@@ -243,27 +495,30 @@ impl Parse for Expr {
                     (tokens, None)
                 };
 
-                (tokens, Expr::If {
-                    cond: box cond,
-                    then: box then,
-                    els: els.map(Box::new),
-                })
+                (
+                    tokens,
+                    Expr::If {
+                        cond: box cond,
+                        then: box then,
+                        els: els.map(Box::new),
+                    },
+                )
             }
             _ => {
                 if let Some(unary_op) = UnaryOperator::new(&token) {
-                    let (tokens, expr) = Expr::parse_prec_lvl(
-                        tokens,
-                        unary_op.precedence()
-                    )?;
+                    let (tokens, expr) = Expr::parse_prec_lvl(tokens, unary_op.precedence())?;
 
-                    (tokens, Expr::Unary {
-                        op: unary_op,
-                        right: box expr,
-                    })
+                    (
+                        tokens,
+                        Expr::Unary {
+                            op: unary_op,
+                            right: box expr,
+                        },
+                    )
                 } else {
-                    return Err(Error::new(token.clone(), "Expected expression".into()))
+                    return Err(Error::new(token.clone(), "Expected expression".into()));
                 }
-            },
+            }
         };
 
         loop {
@@ -278,15 +533,15 @@ impl Parse for Expr {
                     if right_square.ty != TokenType::RightSquare {
                         return Err(Error::new(
                             right_square.clone(),
-                            "Expected closing square bracket to end indexing".into()
-                        ))
+                            "Expected closing square bracket to end indexing".into(),
+                        ));
                     }
 
                     expr = Expr::Indexing {
                         array: box expr,
                         index: box index,
                     };
-                },
+                }
                 TokenType::LeftParen => {
                     tokens.eat();
 
@@ -301,20 +556,22 @@ impl Parse for Expr {
                         match next.ty {
                             TokenType::Comma => {
                                 tokens.eat();
-                            },
-                            TokenType::RightParen => {},
-                            _ => return Err(Error::new(
-                                next.clone(),
-                                "Expected comma or right parenthesis".into()
-                            ))
+                            }
+                            TokenType::RightParen => {}
+                            _ => {
+                                return Err(Error::new(
+                                    next.clone(),
+                                    "Expected comma or right parenthesis".into(),
+                                ))
+                            }
                         };
                     }
                     let right_paren = tokens.eat();
                     if right_paren.ty != TokenType::RightParen {
                         return Err(Error::new(
                             right_paren.clone(),
-                            "Expected right parenthesis".into()
-                        ))
+                            "Expected right parenthesis".into(),
+                        ));
                     }
 
                     expr = Expr::Evoc {
@@ -329,16 +586,35 @@ impl Parse for Expr {
         while let Some(bin_op) = BinaryOperator::new(tokens.peek()) {
             let op_prec = bin_op.precedence();
             if op_prec > prec_lvl || op_prec == prec_lvl && bin_op.right_assoc() {
-                tokens.eat(); // eat the binary operator
+                let bin_op_token = tokens.eat().clone(); // the binary operator
                 let (new_tokens, right_expr) = Expr::parse_prec_lvl(tokens, op_prec)?;
                 tokens = new_tokens;
-                expr = Expr::Binary {
-                    op: bin_op,
-                    left: box expr,
-                    right: box right_expr,
-                };
+
+                if bin_op == BinaryOperator::MethodCall {
+                    if let Expr::Evoc { func, mut args } = right_expr {
+                        let mut new_args = Vec::with_capacity(1 + args.len());
+                        new_args.push(expr);
+                        new_args.append(&mut args);
+
+                        expr = Expr::Evoc {
+                            func,
+                            args: new_args,
+                        };
+                    } else {
+                        return Err(Error::new(
+                            bin_op_token.clone(), // TODO: another one
+                            "Right side of |> operator must be a function invocation".into(),
+                        ));
+                    }
+                } else {
+                    expr = Expr::Binary {
+                        op: bin_op,
+                        left: box expr,
+                        right: box right_expr,
+                    };
+                }
             } else {
-                break
+                break;
             }
         }
 
@@ -349,7 +625,7 @@ impl Parse for Expr {
 impl Parse for Stmt {
     fn parse_impl(mut tokens: TokenStream, _prec_lvl: usize) -> Result<(TokenStream, Self), Error> {
         let token = tokens.peek();
-        let (mut tokens, stmt) = match &token.ty {
+        let (tokens, stmt) = match &token.ty {
             TokenType::Let => {
                 tokens.eat();
 
@@ -357,87 +633,67 @@ impl Parse for Stmt {
                 let name = if let TokenType::Ident(name) = &name.ty {
                     name.clone()
                 } else {
-                    return Err(Error::new(
-                        name.clone(),
-                        "Expected identifier".into(),
-                    ));
+                    return Err(Error::new(name.clone(), "Expected identifier".into()));
                 };
-                let ty = if tokens.peek().ty == TokenType::Colon {
+                let (mut tokens, ty) = if tokens.peek().ty == TokenType::Colon {
                     tokens.eat();
 
-                    let ty = tokens.eat();
-                    let ty = if let TokenType::Ident(ty) = &ty.ty {
-                        ty.clone()
-                    } else {
-                        return Err(Error::new(
-                            ty.clone(),
-                            "Expected type identifier".into()
-                        ));
-                    };
+                    let (tokens, ty) = Type::parse(tokens)?;
 
-                    Some(Ident {
-                        name: ty,
-                    })
+                    (tokens, Some(ty))
                 } else {
-                    None
+                    (tokens, None)
                 };
                 let equals = tokens.eat();
                 if equals.ty != TokenType::Equal {
-                    return Err(Error::new(
-                        equals.clone(),
-                        "Expected equals sign".into(),
-                    ));
+                    return Err(Error::new(equals.clone(), "Expected equals sign".into()));
                 }
                 let (tokens, value) = Expr::parse(tokens)?;
 
-                (tokens, Stmt::Let {
-                    ident: Ident {
-                        name
+                (
+                    tokens,
+                    Stmt::Let {
+                        ident: Ident { name },
+                        ty,
+                        value,
                     },
-                    ty,
-                    value
-                })
-            },
+                )
+            }
             TokenType::Return => {
                 tokens.eat();
 
                 let (tokens, expr) = Expr::parse(tokens)?;
 
                 (tokens, Stmt::Return(expr))
-            },
+            }
             TokenType::For => {
                 tokens.eat();
 
                 let i = tokens.eat();
                 let i = if let TokenType::Ident(i) = &i.ty {
-                    Ident {
-                        name: i.clone()
-                    }
+                    Ident { name: i.clone() }
                 } else {
-                    return Err(Error::new(
-                        i.clone(),
-                        "Expected identifier".into()
-                    ));
+                    return Err(Error::new(i.clone(), "Expected identifier".into()));
                 };
 
                 let in_token = tokens.eat();
                 if in_token.ty != TokenType::In {
-                    return Err(Error::new(
-                        in_token.clone(),
-                        "Expected 'in'".into(),
-                    ));
+                    return Err(Error::new(in_token.clone(), "Expected 'in'".into()));
                 }
 
                 let (tokens, iter) = Expr::parse(tokens)?;
 
                 let (tokens, body) = Stmt::parse(tokens)?;
 
-                (tokens, Stmt::For {
-                    i,
-                    iter,
-                    body: box body,
-                })
-            },
+                (
+                    tokens,
+                    Stmt::For {
+                        i,
+                        iter,
+                        body: box body,
+                    },
+                )
+            }
             TokenType::Ident(ident) => {
                 let ident = ident.clone();
                 if let Some(op) = AssignmentOperator::new(tokens.peek_n(1)) {
@@ -446,17 +702,22 @@ impl Parse for Stmt {
 
                     let (tokens, value) = Expr::parse(tokens)?;
 
-                    (tokens, Stmt::Assign {
-                        ident: Ident { name: ident.clone() },
-                        op,
-                        value
-                    })
+                    (
+                        tokens,
+                        Stmt::Assign {
+                            ident: Ident {
+                                name: ident.clone(),
+                            },
+                            op,
+                            value,
+                        },
+                    )
                 } else {
                     let (tokens, expr) = Expr::parse(tokens)?;
 
                     (tokens, Stmt::Expr(expr))
                 }
-            },
+            }
             _ => {
                 let (tokens, expr) = Expr::parse(tokens)?;
 

@@ -1,20 +1,21 @@
 #![feature(box_syntax)]
 
-use std::io::Write;
+use std::io::{Stdin, Write};
 use std::{fs, io};
 
 mod ast;
 mod lex;
 mod util;
 
+use ast::{Eval, File, Parse, Stmt};
 use lex::{Lexer, TokenStream, TokenType};
-use ast::{Eval, Parse, Stmt};
 
 #[derive(PartialEq, Copy, Clone)]
 enum Mode {
-    Lex, Parse, Eval
+    Lex,
+    Parse,
+    Eval,
 }
-
 
 fn run(mode: Mode, input: &str) {
     let lexer = Lexer::new(input);
@@ -36,30 +37,52 @@ fn run(mode: Mode, input: &str) {
         return;
     }
 
-    let mut token_stream = TokenStream::from(tokens.as_ref());
+    let mut tokens = TokenStream::from(tokens.as_ref());
 
-    while token_stream.peek().ty != TokenType::EOF {
-        let stmt;
-        match Stmt::parse(token_stream) {
-            Ok((token_stream_, stmt_)) => {
-                token_stream = token_stream_;
-                stmt = stmt_;
-            },
+    match File::parse(tokens) {
+        Ok((_, file)) => return println!("{:#?}", file),
+        Err(err) => eprintln!(
+            "Received error '{}' when parsing as file. Parsing as expression",
+            err
+        ),
+    }
+
+    while tokens.peek().ty != TokenType::EOF {
+        let (new_tokens, stmt) = match Stmt::parse(tokens) {
+            Ok(stuff) => stuff,
             Err(err) => {
                 eprintln!("{}", err);
                 return;
-            },
-        }
+            }
+        };
+        tokens = new_tokens;
 
         match mode {
-            Mode::Parse => println!("{:#?}", stmt),
+            Mode::Parse => { println!("{:#?}", stmt); println!("{}", stmt); },
             Mode::Eval => println!("{}", stmt.eval()),
             _ => unreachable!(),
         }
     }
 }
 
-fn repl() -> io::Result<()> {
+fn repl(mode: Mode, stdin: Stdin, mut input: String) -> io::Result<()> {
+    loop {
+        input.clear();
+        print!("> ");
+        io::stdout().flush()?;
+
+        if stdin.read_line(&mut input)? == 0 {
+            println!("\nExiting");
+            return Ok(());
+        }
+
+        run(mode, &input);
+    }
+}
+
+fn main() -> io::Result<()> {
+    let args: Vec<String> = std::env::args().collect();
+
     let stdin = io::stdin();
     let mut input = String::new();
 
@@ -79,23 +102,6 @@ fn repl() -> io::Result<()> {
         return Ok(());
     }
 
-    loop {
-        input.clear();
-        print!("> ");
-        io::stdout().flush()?;
-
-        if stdin.read_line(&mut input)? == 0 {
-            println!("\nExiting");
-            return Ok(());
-        }
-
-        run(mode, &input);
-    }
-}
-
-fn main() {
-    let args: Vec<String> = std::env::args().collect();
-
     if let Some(filename) = args.get(1) {
         match fs::read_to_string(filename) {
             Ok(src) => run(Mode::Parse, &src),
@@ -104,8 +110,10 @@ fn main() {
             }
         }
     } else {
-        if let Err(err) = repl() {
+        if let Err(err) = repl(mode, stdin, input) {
             eprintln!("{}", err);
         }
     }
+
+    Ok(())
 }

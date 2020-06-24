@@ -1,7 +1,8 @@
 use crate::lex::{Token, TokenType};
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub enum BinaryOperator {
+    MethodCall,
     Add, Sub, Mul, Div, Mod, Pow,
     BitAnd, BitOr, BitXor,
     And, Or, Eq, Neq,
@@ -12,29 +13,31 @@ impl BinaryOperator {
     pub fn new(token: &Token) -> Option<Self> {
         use BinaryOperator::*;
         match token.ty {
-            TokenType::Plus =>             Some(Add),
-            TokenType::Minus =>            Some(Sub),
-            TokenType::Percent =>          Some(Mod),
-            TokenType::Amp =>              Some(BitAnd),
-            TokenType::Caret =>            Some(BitXor),
-            TokenType::Bar =>              Some(BitOr),
-            TokenType::Asterisk =>         Some(Mul),
+            TokenType::BarGt            => Some(MethodCall),
+            TokenType::Plus             => Some(Add),
+            TokenType::Minus            => Some(Sub),
+            TokenType::Percent          => Some(Mod),
+            TokenType::Amp              => Some(BitAnd),
+            TokenType::Caret            => Some(BitXor),
+            TokenType::Bar              => Some(BitOr),
+            TokenType::Asterisk         => Some(Mul),
             TokenType::AsteriskAsterisk => Some(Pow),
-            TokenType::BangEq =>           Some(Neq),
-            TokenType::EqualEqual =>       Some(Eq),
-            TokenType::Greater =>          Some(Gt),
-            TokenType::GreaterEqual =>     Some(Ge),
-            TokenType::Less =>             Some(Lt),
-            TokenType::LessEqual =>        Some(Le),
-            TokenType::Slash =>            Some(Div),
-            TokenType::And =>              Some(And),
-            TokenType::Or =>               Some(Or),
+            TokenType::BangEq           => Some(Neq),
+            TokenType::EqualEqual       => Some(Eq),
+            TokenType::Greater          => Some(Gt),
+            TokenType::GreaterEqual     => Some(Ge),
+            TokenType::Less             => Some(Lt),
+            TokenType::LessEqual        => Some(Le),
+            TokenType::Slash            => Some(Div),
+            TokenType::And              => Some(And),
+            TokenType::Or               => Some(Or),
             _ => None,
         }
     }
     pub fn precedence(&self) -> usize {
         use BinaryOperator::*;
         match self {
+            MethodCall        => 15,
             Pow               => 14,
             BitAnd            => 12,
             BitXor            => 11,
@@ -76,8 +79,8 @@ impl UnaryOperator {
         use UnaryOperator::*;
         match self {
             Ref | Deref => 14,
-            Neg | Abs => 13,
-            Not   => 14,
+            Neg | Abs   => 13,
+            Not         => 14,
         }
     }
 }
@@ -86,7 +89,6 @@ impl UnaryOperator {
 pub enum AssignmentOperator {
     Assign,
     Add, Sub, Mul, Div, Mod, Pow,
-    BitAnd, BitOr, BitXor,
 }
 
 impl AssignmentOperator {
@@ -101,8 +103,8 @@ impl AssignmentOperator {
             TokenType::PercentEq          => Some(Mod),
             TokenType::AsteriskAsteriskEq => Some(Pow),
             // TokenType::AmpEq              => Some(BitAnd),
-            TokenType::BarEq              => Some(BitOr),
-            TokenType::CaretEq            => Some(BitXor),
+            // TokenType::BarEq              => Some(BitOr),
+            // TokenType::CaretEq            => Some(BitXor),
             _ => None,
         }
     }
