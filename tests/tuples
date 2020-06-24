@@ -1,0 +1,3 @@
+fn gibb_void() -> []         = @[]     # it's an empty tuple, aka void
+fn gibb_list() -> [u64]      = @[1]    # it's a list
+fn gib_tuple() -> [u64, u64] = @[1, 2] # it's a tuple

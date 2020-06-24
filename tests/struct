@@ -1,0 +1,18 @@
+struct LinkedList {
+	value: i64,
+	next: &LinkedList,
+	prev: &LinkedList,
+}
+
+fn stuff() {
+	let list = LinkedList @{
+		value: 1,
+		next: &LinkedList @{
+			value: 2,
+			next: null,
+			prev: &a,
+		},
+		prev: null,
+	}
+    for elem in list print(elem)
+}

@@ -1,0 +1,42 @@
+fn fib_rec(n: u64) -> u64 =
+	if n < 2
+		n
+	else
+		fib(n - 2) + fib(n - 1)
+
+fn fib_it(n: u64) -> u64 {
+	let a = 0
+	let b = 1
+
+	for _ in range(0, n) {
+		let c = a + b
+		a = b
+		b = c
+	}
+
+	a
+}
+
+fn fib_t_rec(n: u64) -> u64 = fib_t_rec_(n, 0, 1)
+fn fib_t_rec_(n: u64, a: u64, b: u64) -> u64 =
+	if n < 1
+		a
+	else
+		fib_t_rec_(n - 1, b, a + b)
+
+fn fib(n: u64) -> u64 = fib_t_rec
+
+fn fib_range(start: u64, end: u64) -> [u64] =
+	range(start, end) |> map(fn n = fib(n))
+
+
+fn map(array: [u64], f: fn u64 -> u64) -> [u64] {
+	let ret = @[]
+	for elem in array
+		push(ret, f(elem))
+	ret
+}
+
+fn for_each(array: [u64], f: fn u64) -> u64 {
+    for elem in array f(elem)
+}

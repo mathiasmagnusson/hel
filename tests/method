@@ -1,6 +1,6 @@
 [1, 2, 3, 4, 5, 6, 7, 8]
-	~> filter(n => n % 2 == 0)
-	~> map(parse)
-	~> sum()
+	|> filter(fn n = n % 2 == 0)
+	|> map(parse)
+	|> sum()
 
-result~>map_err(ShitErr)
+result |> map_err(ShitErr)

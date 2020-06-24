@@ -4,7 +4,7 @@ struct Thing {
 }
 
 fn fun() -> int {
-	let t = Thing {
+	let t = Thing @{
 		a: 1,
 		b: 2,
 	}
@@ -13,5 +13,5 @@ fn fun() -> int {
 }
 
 fn main() {
-	print f"{fun()}"
+	print("%(fun())")
 }
