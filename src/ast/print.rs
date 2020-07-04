@@ -1,12 +1,15 @@
 use std::fmt;
 
-use super::{AssignmentOperator, BinaryOperator, Expr, Ident, Literal, Stmt, UnaryOperator, Value, Type};
+use super::{
+    AssignmentOperator, BinaryOperator, Expr, Ident, Literal, Path, Stmt, Type, UnaryOperator,
+    Value,
+};
 
 impl fmt::Display for Type {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         match self {
             Type::Reference(ty) => write!(f, "&{}", ty),
-            Type::Ident(ident) => write!(f, "{}", ident),
+            Type::Path(path) => write!(f, "{}", path),
             Type::Tuple(types) => {
                 write!(f, "[")?;
                 fmt_slice(f, ", ", types)?;
@@ -41,72 +44,74 @@ impl fmt::Display for Value {
 
 impl fmt::Display for Expr {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        #[rustfmt::skip]
         match self {
-            Expr::Ident(ident) => write!(f, "{}", ident)?,
+            Expr::Path(path) => write!(f, "{}", path)?,
             Expr::Lit(lit) => write!(f, "{}", lit)?,
-            Expr::Binary {
-                op,
-                left,
-                right,
-            } => write!(f, "({} {} {})", left, op, right)?,
-            Expr::Unary {
-                op,
-                right,
-            } => write!(f, "{}{}", op, right)?,
-            Expr::Evoc {
-                func,
-                args,
-            } => {
-                if let Expr::Ident(ident) = func.as_ref() {
-                    write!(f, "{}", ident)?;
+            Expr::Binary { op, left, right } => write!(f, "({} {} {})", left, op, right)?,
+            Expr::Unary { op, right } => write!(f, "{}{}", op, right)?,
+            Expr::Evoc { func, args } => {
+                if matches!(
+                    func.as_ref(),
+                    Expr::Path(_)
+                        | Expr::FieldAccess { .. }
+                        | Expr::Evoc { .. }
+                        | Expr::Indexing { .. }
+                ) {
+                    write!(f, "{}", func)?;
                 } else {
                     write!(f, "({})", func)?;
                 }
                 write!(f, "(")?;
                 fmt_slice(f, ", ", args)?;
                 write!(f, ")")?;
-            },
-            Expr::TupleOrArray(items) => {
-                write!(f, "@[")?;
-                fmt_slice(f, ", ", items)?;
-                write!(f, "]")?;
-            },
-            Expr::Indexing {
-                array,
-                index,
-            } => {
-                if let Expr::Ident(ident) = array.as_ref() {
-                    write!(f, "{}", ident)?;
+            }
+            Expr::Indexing { array, index } => {
+                if matches!(
+                    array.as_ref(),
+                    Expr::Path(_)
+                        | Expr::FieldAccess { .. }
+                        | Expr::Evoc { .. }
+                        | Expr::Indexing { .. }
+                ) {
+                    write!(f, "{}", array)?;
                 } else {
                     write!(f, "({})", array)?;
                 }
                 write!(f, "[{}]", index)?;
-            },
-            Expr::StructConstruct {
-                ident,
-                vals,
-            } => {
-                write!(f, "{} {{ ", ident)?;
+            }
+            Expr::FieldAccess { left, field } => {
+                if matches!(
+                    left.as_ref(),
+                    Expr::Path(_)
+                        | Expr::FieldAccess { .. }
+                        | Expr::Evoc { .. }
+                        | Expr::Indexing { .. }
+                ) {
+                    write!(f, "{}", left)?;
+                } else {
+                    write!(f, "({})", left)?;
+                }
+                write!(f, ".{}", field)?;
+            }
+            Expr::TupleOrArray(items) => {
+                write!(f, "@[")?;
+                fmt_slice(f, ", ", items)?;
+                write!(f, "]")?;
+            }
+            Expr::StructConstruct { path, vals } => {
+                write!(f, "{} @{{ ", path)?;
                 for (i, (k, v)) in vals.iter().enumerate() {
-                    write!(f, "{}: {}{}", k.name, v, if i == vals.len() { "" } else { ", "})?;
+                    write!(f, "{}: {}{}", k, v, if i == vals.len() { "" } else { ", " })?;
                 }
                 write!(f, " }}")?;
-            },
-            Expr::If {
-                cond,
-                then,
-                els,
-            } => {
+            }
+            Expr::If { cond, then, els } => {
                 write!(f, "if {} {}", cond, then)?;
                 if let Some(els) = els {
                     write!(f, " else {}", els)?;
                 }
-            },
-            Expr::Closure {
-                args,
-                body,
-            } => {
+            }
+            Expr::Closure { args, body } => {
                 write!(f, "fn ")?;
                 if args.len() != 1 {
                     write!(f, "(")?;
@@ -125,7 +130,7 @@ impl fmt::Display for Expr {
                 write!(f, "{{ ")?;
                 fmt_slice(f, " ", block)?;
                 write!(f, " }}")?;
-            },
+            }
         };
 
         Ok(())
@@ -155,10 +160,10 @@ impl fmt::Display for Stmt {
             } => write!(f, "for {} in {} {}", i, iter, body)?,
             Stmt::Return(expr) => write!(f, "return {}", expr)?,
             Stmt::Assign {
-                ident,
+                variable,
                 op,
                 value,
-            } => write!(f, "{} {} {}", ident, op, value)?,
+            } => write!(f, "{} {} {}", variable, op, value)?,
         };
 
         Ok(())
@@ -167,7 +172,13 @@ impl fmt::Display for Stmt {
 
 impl fmt::Display for Ident {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{}", self.name)
+        write!(f, "{}", self.0)
+    }
+}
+
+impl fmt::Display for Path {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        fmt_slice(f, "::", &self.0)
     }
 }
 
@@ -198,7 +209,7 @@ impl fmt::Display for UnaryOperator {
         #[rustfmt::skip]
         write!(f, "{}", match self {
             UnaryOperator::Ref   => '&',
-            UnaryOperator::Deref => '*',
+            UnaryOperator::Deref => '$',
             UnaryOperator::Neg   => '-',
             UnaryOperator::Abs   => '+',
             UnaryOperator::Not   => '!',

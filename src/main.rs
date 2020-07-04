@@ -42,7 +42,7 @@ fn run(mode: Mode, input: &str) {
     match File::parse(tokens) {
         Ok((_, file)) => return println!("{:#?}", file),
         Err(err) => eprintln!(
-            "Received error '{}' when parsing as file. Parsing as expression",
+            "Received error '{}' when parsing as file. Parsing as statement",
             err
         ),
     }

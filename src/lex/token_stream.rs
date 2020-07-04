@@ -19,6 +19,10 @@ impl TokenStream<'_> {
         self.i += 1;
         self.get(self.i - 1)
     }
+    pub fn uneat(&mut self) {
+        assert_ne!(self.i, 0);
+        self.i -= 1;
+    }
     pub fn peek(&mut self) -> &Token {
         self.get(self.i)
     }

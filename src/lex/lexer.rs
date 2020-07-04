@@ -73,11 +73,17 @@ impl Lexer {
             '}' => self.add_token(TokenType::RightCurly),
             ',' => self.add_token(TokenType::Comma),
             '.' => self.add_token(TokenType::Dot),
-            ':' => self.add_token(TokenType::Colon),
             '?' => self.add_token(TokenType::Quest),
             '@' => self.add_token(TokenType::At),
             '&' => self.add_token(TokenType::Amp),
             '$' => self.add_token(TokenType::Dollar),
+            ':' => match self.peek() {
+                ':' => {
+                    self.eat();
+                    self.add_token(TokenType::ColonColon);
+                }
+                _ => self.add_token(TokenType::Colon),
+            },
             '+' => match self.peek() {
                 '=' => {
                     self.eat();
@@ -107,7 +113,7 @@ impl Lexer {
                 '=' => {
                     self.eat();
                     self.add_token(TokenType::BarEq);
-                },
+                }
                 '>' => {
                     self.eat();
                     self.add_token(TokenType::BarGt);
@@ -202,10 +208,12 @@ impl Lexer {
                         }
                     }
                 }
-                _ => while self.peek() != '\n' {
-                    self.eat();
+                _ => {
+                    while self.peek() != '\n' {
+                        self.eat();
+                    }
                 }
-            }
+            },
             '"' => {
                 self.next_string();
             }
@@ -288,6 +296,7 @@ impl Lexer {
             self.input[self.curr]
         }
     }
+    #[allow(dead_code)]
     fn peek_n(&self, n: usize) -> char {
         if self.curr + n >= self.input.len() {
             '\0'

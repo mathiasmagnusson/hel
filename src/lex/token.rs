@@ -6,7 +6,6 @@ pub enum TokenType {
     LeftCurly, RightCurly,
     LeftSquare, RightSquare,
     Comma, Dot,
-    Colon,
     Quest,
     At, Amp,
 
@@ -21,6 +20,7 @@ pub enum TokenType {
     BarEq, CaretEq,
     AsteriskEq, AsteriskAsteriskEq, SlashEq,
     RightArrow, BarGt,
+    Colon, ColonColon,
 
     Ident(String), String(String), Integer(usize),
 

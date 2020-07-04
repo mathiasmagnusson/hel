@@ -1,0 +1,17 @@
+import core::iter
+import core::io
+import core::string
+import core::list
+
+fn main() {
+	for _ in iter::repeat(0) {
+		let sum = io::stdin
+			|> read_line()
+			|> split(" ")
+			|> map(fn s = string::parse_int(s) ** 2)
+			|> list::sum()
+
+		io::stdout
+			|> write("%(sum)")
+	}
+}

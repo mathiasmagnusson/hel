@@ -2,7 +2,7 @@ use std::usize;
 
 use super::{
     Argument, AssignmentOperator, BinaryOperator, Error, Expr, Field, File, Function, Ident,
-    Import, Literal, Stmt, Struct, TokenStream, Type, UnaryOperator,
+    Import, Literal, Path, Stmt, Struct, TokenStream, Type, UnaryOperator,
 };
 
 use crate::lex::TokenType;
@@ -14,6 +14,29 @@ pub trait Parse: Sized {
         Self::parse_impl(tokens, prec_lvl)
     }
     fn parse_impl(tokens: TokenStream, prec_lvl: usize) -> Result<(TokenStream, Self), Error>;
+}
+
+impl Parse for Path {
+    fn parse_impl(mut tokens: TokenStream, _prec_lvl: usize) -> Result<(TokenStream, Self), Error> {
+        let first = tokens.eat();
+        let first = match &first.ty {
+            TokenType::Ident(ident) => Ident(ident.clone()),
+            _ => return Err(Error::new(first.clone(), "Expected identifier".into())),
+        };
+
+        let mut idents = vec![first];
+        while let TokenType::ColonColon = &tokens.peek().ty {
+            tokens.eat(); // ::
+            let next = tokens.eat();
+            let next = match &next.ty {
+                TokenType::Ident(ident) => Ident(ident.clone()),
+                _ => return Err(Error::new(next.clone(), "Expected identifier".into())),
+            };
+            idents.push(next);
+        }
+
+        Ok((tokens, Path(idents)))
+    }
 }
 
 impl Parse for File {
@@ -29,21 +52,17 @@ impl Parse for File {
 
             match &token.ty {
                 TokenType::Import => {
-                    let ident = tokens.eat();
-                    if let TokenType::Ident(ident) = &ident.ty {
-                        file.imports.push(Import {
-                            ident: Ident {
-                                name: ident.clone(),
-                            },
-                        })
-                    }
+                    let (new_tokens, path) = Path::parse(tokens)?;
+                    tokens = new_tokens;
+
+                    file.imports.push(Import {
+                        path,
+                    });
                 }
                 TokenType::Function => {
                     let ident = tokens.eat();
                     let ident = if let TokenType::Ident(ident) = &ident.ty {
-                        Ident {
-                            name: ident.clone(),
-                        }
+                        Ident(ident.clone())
                     } else {
                         return Err(Error::new(ident.clone(), "Expected identifier".into()));
                     };
@@ -60,9 +79,7 @@ impl Parse for File {
                     while tokens.peek().ty != TokenType::RightParen {
                         let arg_name = tokens.eat();
                         let arg_name = if let TokenType::Ident(arg_name) = &arg_name.ty {
-                            Ident {
-                                name: arg_name.clone(),
-                            }
+                            Ident(arg_name.clone())
                         } else {
                             return Err(Error::new(arg_name.clone(), "Expected identifier".into()));
                         };
@@ -139,9 +156,7 @@ impl Parse for File {
                 TokenType::Struct => {
                     let ident = tokens.eat();
                     let ident = if let TokenType::Ident(ident) = &ident.ty {
-                        Ident {
-                            name: ident.clone(),
-                        }
+                        Ident(ident.clone())
                     } else {
                         return Err(Error::new(ident.clone(), "Expected identifier".into()));
                     };
@@ -159,7 +174,7 @@ impl Parse for File {
                     while tokens.peek().ty != TokenType::RightCurly {
                         let name = tokens.eat();
                         let name = if let TokenType::Ident(name) = &name.ty {
-                            Ident { name: name.clone() }
+                            Ident(name.clone())
                         } else {
                             return Err(Error::new(name.clone(), "Expected identifier".into()));
                         };
@@ -172,7 +187,6 @@ impl Parse for File {
                         let (new_tokens, ty) = Type::parse(tokens)?;
                         tokens = new_tokens;
 
-                        // fields.push(Field{ Ident { name: key }, box value });
                         fields.push(Field { name, ty });
 
                         let next = tokens.peek();
@@ -209,17 +223,19 @@ impl Parse for File {
 
 impl Parse for Type {
     fn parse_impl(mut tokens: TokenStream, _prec_lvl: usize) -> Result<(TokenStream, Self), Error> {
-        let token = tokens.eat();
+        let token = tokens.peek();
         let (tokens, ty) = match &token.ty {
-            TokenType::Ident(val) => {
-                let ident = Ident { name: val.clone() };
-                (tokens, Type::Ident(ident))
+            TokenType::Ident(_) => {
+                let (tokens, path) = Path::parse(tokens)?;
+                (tokens, Type::Path(path))
             }
             TokenType::Amp => {
+                tokens.eat(); // &
                 let (tokens, inner) = Type::parse(tokens)?;
                 (tokens, Type::Reference(box inner))
             }
             TokenType::LeftSquare => {
+                tokens.eat(); // [
                 let mut types = vec![];
                 while tokens.peek().ty != TokenType::RightSquare {
                     let (new_tokens, ty) = Type::parse(tokens)?;
@@ -250,6 +266,7 @@ impl Parse for Type {
                 }
             }
             TokenType::Function => {
+                tokens.eat(); // fn
                 let (mut tokens, args) = if tokens.peek().ty == TokenType::LeftParen {
                     let (tokens, args) = Type::parse(tokens)?;
                     let args = match args {
@@ -304,7 +321,7 @@ impl Parse for Expr {
                         _ => return Err(Error::new(arg.clone(), "Expected identifier".into())),
                     };
 
-                    args.push(Ident { name: arg });
+                    args.push(Ident(arg));
 
                     if !has_parens {
                         break;
@@ -350,8 +367,9 @@ impl Parse for Expr {
                     },
                 )
             }
-            TokenType::Ident(val) => {
-                let ident = Ident { name: val.clone() };
+            TokenType::Ident(_) => {
+                tokens.uneat();
+                let (mut tokens, path) = Path::parse(tokens)?;
                 if tokens.peek().ty == TokenType::At && tokens.peek_n(1).ty == TokenType::LeftCurly
                 {
                     tokens.eat(); // @
@@ -375,7 +393,7 @@ impl Parse for Expr {
                         let (new_tokens, value) = Expr::parse(tokens)?;
                         tokens = new_tokens;
 
-                        vals.push((Ident { name: key }, box value));
+                        vals.push((Ident(key), box value));
 
                         let next = tokens.peek();
                         match next.ty {
@@ -391,11 +409,11 @@ impl Parse for Expr {
                             }
                         }
                     }
-                    tokens.eat(); // right curly
+                    tokens.eat(); // }
 
-                    (tokens, Expr::StructConstruct { ident, vals })
+                    (tokens, Expr::StructConstruct { path, vals })
                 } else {
-                    let expr = Expr::Ident(ident);
+                    let expr = Expr::Path(path);
                     (tokens, expr)
                 }
             }
@@ -523,6 +541,20 @@ impl Parse for Expr {
 
         loop {
             match tokens.peek().ty {
+                TokenType::Dot => {
+                    tokens.eat();
+
+                    let next = tokens.eat();
+                    let field = match &next.ty {
+                        TokenType::Ident(ident) => ident.clone(),
+                        _ => return Err(Error::new(next.clone(), "Expected identifier".into())),
+                    };
+
+                    expr = Expr::FieldAccess {
+                        left: box expr,
+                        field: Ident(field),
+                    }
+                }
                 TokenType::LeftSquare => {
                     tokens.eat();
 
@@ -586,23 +618,19 @@ impl Parse for Expr {
         while let Some(bin_op) = BinaryOperator::new(tokens.peek()) {
             let op_prec = bin_op.precedence();
             if op_prec > prec_lvl || op_prec == prec_lvl && bin_op.right_assoc() {
-                let bin_op_token = tokens.eat().clone(); // the binary operator
+                tokens.eat(); // the binary operator
+                let right_side_first_token = tokens.peek().clone();
                 let (new_tokens, right_expr) = Expr::parse_prec_lvl(tokens, op_prec)?;
                 tokens = new_tokens;
 
                 if bin_op == BinaryOperator::MethodCall {
                     if let Expr::Evoc { func, mut args } = right_expr {
-                        let mut new_args = Vec::with_capacity(1 + args.len());
-                        new_args.push(expr);
-                        new_args.append(&mut args);
+                        args.insert(0, expr);
 
-                        expr = Expr::Evoc {
-                            func,
-                            args: new_args,
-                        };
+                        expr = Expr::Evoc { func, args };
                     } else {
                         return Err(Error::new(
-                            bin_op_token.clone(), // TODO: another one
+                            right_side_first_token,
                             "Right side of |> operator must be a function invocation".into(),
                         ));
                     }
@@ -653,7 +681,7 @@ impl Parse for Stmt {
                 (
                     tokens,
                     Stmt::Let {
-                        ident: Ident { name },
+                        ident: Ident(name),
                         ty,
                         value,
                     },
@@ -671,7 +699,7 @@ impl Parse for Stmt {
 
                 let i = tokens.eat();
                 let i = if let TokenType::Ident(i) = &i.ty {
-                    Ident { name: i.clone() }
+                    Ident(i.clone())
                 } else {
                     return Err(Error::new(i.clone(), "Expected identifier".into()));
                 };
@@ -694,34 +722,17 @@ impl Parse for Stmt {
                     },
                 )
             }
-            TokenType::Ident(ident) => {
-                let ident = ident.clone();
-                if let Some(op) = AssignmentOperator::new(tokens.peek_n(1)) {
-                    tokens.eat(); // ident
-                    tokens.eat();
+            _ => {
+                let (mut tokens, expr) = Expr::parse(tokens)?;
 
+                if let Some(op) = AssignmentOperator::new(tokens.peek()) {
+                    tokens.eat(); // op
                     let (tokens, value) = Expr::parse(tokens)?;
 
-                    (
-                        tokens,
-                        Stmt::Assign {
-                            ident: Ident {
-                                name: ident.clone(),
-                            },
-                            op,
-                            value,
-                        },
-                    )
+                    (tokens, Stmt::Assign { variable: expr, op, value })
                 } else {
-                    let (tokens, expr) = Expr::parse(tokens)?;
-
                     (tokens, Stmt::Expr(expr))
                 }
-            }
-            _ => {
-                let (tokens, expr) = Expr::parse(tokens)?;
-
-                (tokens, Stmt::Expr(expr))
             }
         };
 

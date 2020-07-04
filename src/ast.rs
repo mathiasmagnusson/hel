@@ -34,9 +34,10 @@ impl fmt::Display for Error {
 impl std::error::Error for Error {}
 
 #[derive(Debug)]
-pub struct Ident {
-    name: String,
-}
+pub struct Ident(String);
+
+#[derive(Debug)]
+pub struct Path(Vec<Ident>);
 
 #[derive(Debug)]
 pub enum Literal {
@@ -55,7 +56,7 @@ pub struct File {
 
 #[derive(Debug)]
 pub struct Import {
-    ident: Ident,
+    path: Path,
 }
 
 #[derive(Debug)]
@@ -74,7 +75,7 @@ pub struct Argument {
 
 #[derive(Debug)]
 pub enum Type {
-    Ident(Ident),
+    Path(Path),
     Reference(Box<Type>),
     Tuple(Vec<Type>),
     List(Box<Type>), // TODO: fixed big size e.g.: [u64; 16]
@@ -108,7 +109,7 @@ pub enum Stmt {
     },
     Return(Expr),
     Assign {
-        ident: Ident,
+        variable: Expr,
         op: AssignmentOperator,
         value: Expr,
     },
@@ -116,7 +117,7 @@ pub enum Stmt {
 
 #[derive(Debug)]
 pub enum Expr {
-    Ident(Ident),
+    Path(Path),
     Lit(Literal),
     Binary {
         op: BinaryOperator,
@@ -131,13 +132,17 @@ pub enum Expr {
         func: Box<Expr>,
         args: Vec<Expr>,
     },
-    TupleOrArray(Vec<Expr>),
     Indexing {
         array: Box<Expr>,
         index: Box<Expr>,
     },
+    FieldAccess {
+        left: Box<Expr>,
+        field: Ident,
+    },
+    TupleOrArray(Vec<Expr>),
     StructConstruct {
-        ident: Ident,
+        path: Path,
         vals: Vec<(Ident, Box<Expr>)>,
     },
     If {

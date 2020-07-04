@@ -67,11 +67,11 @@ pub enum UnaryOperator {
 impl UnaryOperator {
     pub fn new(token: &Token) -> Option<Self> {
         match token.ty {
-            TokenType::Amp      => Some(Self::Ref),
-            TokenType::Asterisk => Some(Self::Deref),
-            TokenType::Minus    => Some(Self::Neg),
-            TokenType::Plus     => Some(Self::Abs),
-            TokenType::Bang     => Some(Self::Not),
+            TokenType::Amp    => Some(Self::Ref),
+            TokenType::Dollar => Some(Self::Deref),
+            TokenType::Minus  => Some(Self::Neg),
+            TokenType::Plus   => Some(Self::Abs),
+            TokenType::Bang   => Some(Self::Not),
             _ => None,
         }
     }
