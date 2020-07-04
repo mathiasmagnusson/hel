@@ -1,0 +1,23 @@
+#(
+	imports follow this priority list:
+		* module
+		* external library
+		* local file
+)#
+
+import hel::io             # imports external library
+import io::stdin           # imports module
+
+import function::fib_t_rec # imports local file
+
+fn main() = loop {
+	io::stdout |> write("Cool number: ")
+
+	let n: u64 = stdin
+		|> read_to_string()
+		|> parse()
+
+	io::stdout |> write("Another cool number: ")
+	io::stdout |> write(fib_t_rec(n) |> to_string())
+	io::stdout |> write("\n")
+}
