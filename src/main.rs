@@ -1,10 +1,11 @@
-#![feature(box_syntax)]
+#![feature(box_syntax, box_patterns)]
 
 use std::{fs, io};
 
 mod ast;
 mod lex;
 mod util;
+mod types;
 
 use ast::{File, Parse, Stmt};
 use lex::{Lexer, TokenStream, TokenType};
@@ -22,28 +23,19 @@ fn run(input: &str) {
         }
     }
 
-    let mut tokens = TokenStream::from(tokens.as_ref());
+    let tokens = TokenStream::from(tokens.as_ref());
 
-    match File::parse(tokens) {
-        Ok((_, file)) => return println!("{:#?}", file),
-        Err(err) => eprintln!(
+    let file = match File::parse(tokens) {
+        Ok((_, file)) => file,
+        Err(err) => return eprintln!(
             "Received error '{}' when parsing as file. Parsing as statement",
             err
         ),
-    }
+    };
 
-    while tokens.peek().ty != TokenType::EOF {
-        let (new_tokens, stmt) = match Stmt::parse(tokens) {
-            Ok(stuff) => stuff,
-            Err(err) => {
-                eprintln!("{}", err);
-                return;
-            }
-        };
-        tokens = new_tokens;
+    println!("{:#?}", file);
 
-        println!("{:#?}", stmt); println!("{}", stmt);
-    }
+
 }
 
 fn repl() -> io::Result<()> {
