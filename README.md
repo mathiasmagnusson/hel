@@ -1,4 +1,4 @@
-# hel - **h**ella, **e**pic **l**anguage
+# hel - **h**ella **e**pic **l**anguage
 
 ## Todo
 - [ ] Git gud
