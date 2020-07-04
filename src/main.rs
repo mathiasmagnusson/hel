@@ -1,23 +1,15 @@
 #![feature(box_syntax)]
 
-use std::io::{Stdin, Write};
 use std::{fs, io};
 
 mod ast;
 mod lex;
 mod util;
 
-use ast::{Eval, File, Parse, Stmt};
+use ast::{File, Parse, Stmt};
 use lex::{Lexer, TokenStream, TokenType};
 
-#[derive(PartialEq, Copy, Clone)]
-enum Mode {
-    Lex,
-    Parse,
-    Eval,
-}
-
-fn run(mode: Mode, input: &str) {
+fn run(input: &str) {
     let lexer = Lexer::new(input);
     let tokens;
     match lexer.tokenize() {
@@ -28,13 +20,6 @@ fn run(mode: Mode, input: &str) {
             }
             return;
         }
-    }
-
-    if mode == Mode::Lex {
-        for token in tokens.iter() {
-            println!("{}", token);
-        }
-        return;
     }
 
     let mut tokens = TokenStream::from(tokens.as_ref());
@@ -57,60 +42,39 @@ fn run(mode: Mode, input: &str) {
         };
         tokens = new_tokens;
 
-        match mode {
-            Mode::Parse => { println!("{:#?}", stmt); println!("{}", stmt); },
-            Mode::Eval => println!("{}", stmt.eval()),
-            _ => unreachable!(),
-        }
+        println!("{:#?}", stmt); println!("{}", stmt);
     }
 }
 
-fn repl(mode: Mode, stdin: Stdin, mut input: String) -> io::Result<()> {
-    loop {
-        input.clear();
+fn repl() -> io::Result<()> {
+    use io::{BufRead, Write};
+
+    print!("> ");
+    io::stdout().flush()?;
+    for line in io::stdin().lock().lines() {
+        let line = line?;
+
+        run(&line);
         print!("> ");
         io::stdout().flush()?;
-
-        if stdin.read_line(&mut input)? == 0 {
-            println!("\nExiting");
-            return Ok(());
-        }
-
-        run(mode, &input);
     }
+
+    println!("\nExiting");
+    Ok(())
 }
 
 fn main() -> io::Result<()> {
     let args: Vec<String> = std::env::args().collect();
 
-    let stdin = io::stdin();
-    let mut input = String::new();
-
-    print!("(l)ex, (p)arse, or (e)val hel code? ");
-    let mode;
-
-    io::stdout().flush()?;
-    stdin.read_line(&mut input)?;
-    if input.starts_with("l") {
-        mode = Mode::Lex;
-    } else if input.starts_with("p") {
-        mode = Mode::Parse;
-    } else if input.starts_with("e") {
-        mode = Mode::Eval;
-    } else {
-        println!("\nBye then...");
-        return Ok(());
-    }
-
     if let Some(filename) = args.get(1) {
         match fs::read_to_string(filename) {
-            Ok(src) => run(Mode::Parse, &src),
+            Ok(src) => run(&src),
             Err(err) => {
                 eprintln!("{}", err);
             }
         }
     } else {
-        if let Err(err) = repl(mode, stdin, input) {
+        if let Err(err) = repl() {
             eprintln!("{}", err);
         }
     }
