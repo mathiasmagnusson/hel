@@ -2,7 +2,7 @@ use std::usize;
 
 use super::{
     Argument, AssignmentOperator, BinaryOperator, Error, Expr, Field, File, Function, Ident,
-    Import, Literal, Path, Stmt, Struct, TokenStream, Type, UnaryOperator,
+    Import, Literal, Path, Stmt, Struct, TokenStream, Type, UnaryOperator, Global
 };
 
 use crate::lex::TokenType;
@@ -45,12 +45,41 @@ impl Parse for File {
             imports: vec![],
             structs: vec![],
             functions: vec![],
+            globals: vec![],
         };
 
         loop {
             let token = tokens.eat();
 
             match &token.ty {
+                TokenType::Let => {
+                    let ident = tokens.eat();
+                    let ident = if let TokenType::Ident(ident) = &ident.ty {
+                        Ident(ident.clone())
+                    } else {
+                        return Err(Error::new(ident.clone(), "Expected identifier".into()));
+                    };
+
+                    let colon = tokens.eat();
+                    if colon.ty != TokenType::Colon {
+                        return Err(Error::new(colon.clone(), "Expected colon".into()));
+                    }
+                    let (new_tokens, ty) = Type::parse(tokens)?;
+                    tokens = new_tokens;
+
+                    let equals = tokens.eat();
+                    if equals.ty != TokenType::Equal {
+                        return Err(Error::new(equals.clone(), "Expected equals sign".into()));
+                    }
+                    let (new_tokens, value) = Expr::parse(tokens)?;
+                    tokens = new_tokens;
+
+                    file.globals.push(Global {
+                        ident,
+                        ty,
+                        value,
+                    })
+                }
                 TokenType::Import => {
                     let (new_tokens, path) = Path::parse(tokens)?;
                     tokens = new_tokens;

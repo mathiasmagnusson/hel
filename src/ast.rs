@@ -33,13 +33,13 @@ impl fmt::Display for Error {
 
 impl std::error::Error for Error {}
 
-#[derive(Debug)]
-pub struct Ident(String);
+#[derive(Debug, Clone)]
+pub struct Ident(pub String);
 
-#[derive(Debug)]
-pub struct Path(Vec<Ident>);
+#[derive(Debug, Clone)]
+pub struct Path(pub Vec<Ident>);
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum Literal {
     String(String),
     Integer(usize),
@@ -49,9 +49,10 @@ pub enum Literal {
 
 #[derive(Debug)]
 pub struct File {
-    imports: Vec<Import>,
-    functions: Vec<Function>,
-    structs: Vec<Struct>,
+    pub imports: Vec<Import>,
+    pub functions: Vec<Function>,
+    pub structs: Vec<Struct>,
+    pub globals: Vec<Global>,
 }
 
 #[derive(Debug)]
@@ -59,21 +60,33 @@ pub struct Import {
     path: Path,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Function {
-    ident: Ident,
+    pub ident: Ident,
     args: Vec<Argument>,
     return_type: Type,
     body: Expr,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Argument {
     ident: Ident,
     ty: Type,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
+pub struct Struct {
+    pub ident: Ident,
+    fields: Vec<Field>,
+}
+
+#[derive(Debug, Clone)]
+pub struct Field {
+    name: Ident,
+    ty: Type,
+}
+
+#[derive(Debug, Clone)]
 pub enum Type {
     Path(Path),
     Reference(Box<Type>),
@@ -82,19 +95,14 @@ pub enum Type {
     Function { args: Vec<Type>, ret: Box<Type> },
 }
 
-#[derive(Debug)]
-pub struct Struct {
-    ident: Ident,
-    fields: Vec<Field>,
-}
-
-#[derive(Debug)]
-pub struct Field {
-    name: Ident,
+#[derive(Debug, Clone)]
+pub struct Global {
+    pub ident: Ident,
     ty: Type,
+    value: Expr,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum Stmt {
     Expr(Expr),
     Let {
@@ -115,7 +123,7 @@ pub enum Stmt {
     },
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum Expr {
     Path(Path),
     Lit(Literal),

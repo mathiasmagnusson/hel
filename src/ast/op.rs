@@ -1,6 +1,6 @@
 use crate::lex::{Token, TokenType};
 
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub enum BinaryOperator {
     MethodCall,
     Add, Sub, Mul, Div, Mod, Pow,
@@ -59,7 +59,7 @@ impl BinaryOperator {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum UnaryOperator {
     Ref, Deref, Neg, Abs, Not,
 }
@@ -85,7 +85,7 @@ impl UnaryOperator {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub enum AssignmentOperator {
     Assign,
     Add, Sub, Mul, Div, Mod, Pow,

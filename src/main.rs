@@ -3,7 +3,9 @@
 use std::{fs, io};
 
 mod ast;
+mod bytecode;
 mod lex;
+mod symbol;
 mod types;
 mod util;
 
@@ -27,12 +29,7 @@ fn run(input: &str) {
 
     let file = match File::parse(tokens) {
         Ok((_, file)) => file,
-        Err(err) => {
-            return eprintln!(
-                "Received error '{}' when parsing as file. Parsing as statement",
-                err
-            )
-        }
+        Err(err) => return eprintln!("{}", err),
     };
 
     println!("{:#?}", file);
