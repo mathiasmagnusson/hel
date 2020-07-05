@@ -4,11 +4,11 @@ use std::{fs, io};
 
 mod ast;
 mod lex;
-mod util;
 mod types;
+mod util;
 
-use ast::{File, Parse, Stmt};
-use lex::{Lexer, TokenStream, TokenType};
+use ast::{File, Parse};
+use lex::{Lexer, TokenStream};
 
 fn run(input: &str) {
     let lexer = Lexer::new(input);
@@ -27,15 +27,15 @@ fn run(input: &str) {
 
     let file = match File::parse(tokens) {
         Ok((_, file)) => file,
-        Err(err) => return eprintln!(
-            "Received error '{}' when parsing as file. Parsing as statement",
-            err
-        ),
+        Err(err) => {
+            return eprintln!(
+                "Received error '{}' when parsing as file. Parsing as statement",
+                err
+            )
+        }
     };
 
     println!("{:#?}", file);
-
-
 }
 
 fn repl() -> io::Result<()> {
