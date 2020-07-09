@@ -1,16 +1,13 @@
 #![feature(box_syntax, box_patterns)]
 
-use std::{fs, io};
-
 mod ast;
-mod bytecode;
 mod lex;
-mod symbol;
+mod package;
 mod types;
-mod util;
 
 use ast::{File, Parse};
 use lex::{Lexer, TokenStream};
+use package::Package;
 
 fn run(input: &str) {
     let lexer = Lexer::new(input);
@@ -18,7 +15,7 @@ fn run(input: &str) {
     match lexer.tokenize() {
         Ok(t) => tokens = t,
         Err(errors) => {
-            for err in errors {
+            for err in errors.0 {
                 eprintln!("{}", err);
             }
             return;
@@ -35,8 +32,8 @@ fn run(input: &str) {
     println!("{:#?}", file);
 }
 
-fn repl() -> io::Result<()> {
-    use io::{BufRead, Write};
+fn repl() -> anyhow::Result<()> {
+    use std::io::{self, BufRead, Write};
 
     print!("> ");
     io::stdout().flush()?;
@@ -52,16 +49,12 @@ fn repl() -> io::Result<()> {
     Ok(())
 }
 
-fn main() -> io::Result<()> {
+fn main() -> anyhow::Result<()> {
     let args: Vec<String> = std::env::args().collect();
 
     if let Some(filename) = args.get(1) {
-        match fs::read_to_string(filename) {
-            Ok(src) => run(&src),
-            Err(err) => {
-                eprintln!("{}", err);
-            }
-        }
+        let package = Package::new(filename)?;
+        eprintln!("{:#?}", package);
     } else {
         if let Err(err) = repl() {
             eprintln!("{}", err);

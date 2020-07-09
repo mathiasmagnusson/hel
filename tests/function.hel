@@ -2,7 +2,7 @@ fn fib_rec(n: u64) -> u64 =
 	if n < 2
 		n
 	else
-		fib(n - 2) + fib(n - 1)
+		fib_rec(n - 2) + fib_rec(n - 1)
 
 fn fib_it(n: u64) -> u64 {
 	let a = 0

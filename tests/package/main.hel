@@ -1,0 +1,7 @@
+import lib
+import second
+
+fn main() {
+	println(lib::answer())
+	second::run()
+}

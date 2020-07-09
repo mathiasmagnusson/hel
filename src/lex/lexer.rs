@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 use std::num::Wrapping;
 
-use super::{Error, Token, TokenType};
+use super::{Error, Errors, Token, TokenType};
 
 pub struct Lexer {
     input: Vec<char>,
@@ -48,7 +48,7 @@ impl Lexer {
             keywords,
         }
     }
-    pub fn tokenize(mut self) -> Result<Vec<Token>, Vec<Error>> {
+    pub fn tokenize(mut self) -> Result<Vec<Token>, Errors> {
         while !self.is_eof() {
             self.start = self.curr;
             self.next_token();
@@ -58,7 +58,7 @@ impl Lexer {
             .push(Token::new(TokenType::EOF, String::new(), self.line));
 
         if self.errors.len() > 0 {
-            Err(self.errors)
+            Err(Errors(self.errors))
         } else {
             Ok(self.tokens)
         }

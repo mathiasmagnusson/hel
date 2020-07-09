@@ -1,0 +1,6 @@
+import lib::answer
+
+fn run() {
+	print("Answer: ")
+	println(answer())
+}
