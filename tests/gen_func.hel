@@ -1,0 +1,30 @@
+import function::fib_t_rec
+
+fn* iter(xs: [a]) -> a = for x in xs yield x
+
+fn* map(iterator: fn* () -> a, f: fn a -> b) -> b {
+	for x in iterator yield f(x)
+}
+
+fn main() {
+	let sum = 0
+
+	for fib in map(iter(@[1, 2, 3, 4]), fib_t_rec)
+		sum += fib
+}
+
+fn* fib_iter_with_pauses(n: u64) -> (), u64 {
+	let a = 0
+	let b = 1
+
+	for i in range(n) {
+		# (a, b) = (b, a+b)
+		let tmp = a + b
+		a = b
+		b = tmp
+
+		if i % 20 == 0 yield @()
+	}
+
+	a
+}
