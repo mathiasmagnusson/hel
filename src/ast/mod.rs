@@ -33,10 +33,10 @@ impl fmt::Display for Error {
 
 impl std::error::Error for Error {}
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct Ident(pub String);
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub struct Path(pub Vec<Ident>);
 
 #[derive(Debug, Clone)]
@@ -48,6 +48,11 @@ pub enum Literal {
 }
 
 #[derive(Debug)]
+pub struct Project {
+    pub files: Vec<File>,
+}
+
+#[derive(Debug)]
 pub struct File {
     pub imports: Vec<Import>,
     pub functions: Vec<Function>,
@@ -55,9 +60,9 @@ pub struct File {
     pub globals: Vec<Global>,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Import {
-    path: Path,
+    pub path: Path,
 }
 
 #[derive(Debug, Clone)]
