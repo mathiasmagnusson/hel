@@ -57,6 +57,7 @@ pub struct File {
     pub imports: Vec<Import>,
     pub functions: Vec<Function>,
     pub structs: Vec<Struct>,
+    pub type_decls: Vec<TypeDecl>,
     pub globals: Vec<Global>,
 }
 
@@ -80,6 +81,12 @@ pub struct Argument {
 }
 
 #[derive(Debug, Clone)]
+pub struct TypeDecl {
+    pub ident: Ident,
+    ty: Type,
+}
+
+#[derive(Debug, Clone)]
 pub struct Struct {
     pub ident: Ident,
     fields: Vec<Field>,
@@ -96,7 +103,7 @@ pub enum Type {
     Path(Path),
     Reference(Box<Type>),
     Tuple(Vec<Type>),
-    List(Box<Type>), // TODO: fixed big size e.g.: [u64; 16]
+    List(Box<Type>), // TODO: fixed size e.g.: [u64; 16]
     Function { args: Vec<Type>, ret: Box<Type> },
 }
 
@@ -153,7 +160,8 @@ pub enum Expr {
         left: Box<Expr>,
         field: Ident,
     },
-    TupleOrArray(Vec<Expr>),
+    Tuple(Vec<Expr>),
+    Array(Vec<Expr>),
     StructConstruct {
         path: Path,
         vals: Vec<(Ident, Box<Expr>)>,

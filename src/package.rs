@@ -2,8 +2,8 @@ use std::borrow::Cow;
 use std::collections::{HashSet, VecDeque};
 use std::{fs, iter, path};
 
-use crate::ast::{Function, Global, Ident, Path, Struct};
-use crate::{File, Lexer, Parse, TokenStream};
+use crate::ast::{self, Function, Global, Ident, Path, Struct, TypeDecl};
+use crate::{types::Type, File, Lexer, Parse, TokenStream};
 
 #[derive(Debug)]
 pub struct Package {
@@ -12,29 +12,27 @@ pub struct Package {
 
 #[derive(Debug)]
 pub struct Symbol {
-    location: Path,
-    imports: Vec<Path>,
-    inner: SymbolInner,
+    pub location: Path,
+    pub imports: Vec<Path>,
+    pub inner: SymbolInner,
 }
 
 #[derive(Debug)]
 pub enum SymbolInner {
     Function(Function),
+    TypeDecl(TypeDecl),
     Struct(Struct),
     Global(Global),
 }
 
 impl Symbol {
-    pub fn path_eq(&self, path: &mut dyn Iterator<Item = &Ident>) -> bool {
-        self.location
-            .0
-            .iter()
-            .chain(iter::once(match &self.inner {
-                SymbolInner::Function(Function { ident, .. }) => ident,
-                SymbolInner::Struct(Struct { ident, .. }) => ident,
-                SymbolInner::Global(Global { ident, .. }) => ident,
-            }))
-            .eq(path)
+    pub fn get_path(&self) -> impl Iterator<Item = &Ident> {
+        self.location.0.iter().chain(iter::once(match &self.inner {
+            SymbolInner::Function(Function { ident, .. }) => ident,
+            SymbolInner::TypeDecl(TypeDecl { ident, .. }) => ident,
+            SymbolInner::Struct(Struct { ident, .. }) => ident,
+            SymbolInner::Global(Global { ident, .. }) => ident,
+        }))
     }
 }
 
@@ -103,6 +101,14 @@ impl Package {
                 });
             }
 
+            for type_decl in &file.type_decls {
+                ret.symbols.push(Symbol {
+                    location: hel_path.clone(),
+                    imports: file.imports.iter().map(|imp| imp.path.clone()).collect(),
+                    inner: SymbolInner::TypeDecl(type_decl.clone()),
+                })
+            }
+
             for struc in &file.structs {
                 ret.symbols.push(Symbol {
                     location: hel_path.clone(),
@@ -123,19 +129,22 @@ impl Package {
         Ok(ret)
     }
 
-    pub fn get(&self, path: &Path, from: &Symbol) -> Option<&Symbol> {
+    pub fn get_symbol(&self, path: &Path, from: &Symbol) -> Option<&Symbol> {
         for symbol in &self.symbols {
-            if symbol.path_eq(&mut from.location.0.iter().chain(&path.0)) {
+            if symbol
+                .get_path()
+                .eq(&mut from.location.0.iter().chain(&path.0))
+            {
                 return Some(symbol);
             }
             for imp in &from.imports {
                 if path.0[0] == imp.0[imp.0.len() - 1]
-                    && symbol.path_eq(
-                        &mut from.location.0[0..from.location.0.len() - 1]
+                    && symbol
+                        .get_path()
+                        .eq(&mut from.location.0[0..from.location.0.len() - 1]
                             .iter()
                             .chain(imp.0.iter())
-                            .chain(path.0.iter().skip(1)),
-                    )
+                            .chain(path.0.iter().skip(1)))
                 {
                     return Some(symbol);
                 }
@@ -143,5 +152,14 @@ impl Package {
         }
 
         None
+    }
+
+    pub fn get_type(&self, ty: &ast::Type, from: &Symbol) -> Option<Type> {
+        match ty {
+            ast::Type::Path(path) => {
+                unimplemented!()
+            }
+            _ => unimplemented!()
+        }
     }
 }

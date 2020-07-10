@@ -26,7 +26,7 @@ pub enum TokenType {
 
     Let, Null,
     And, Or, True, False,
-    Function, Struct, Import,
+    Function, Type, Struct, Import,
     If, Then, Else, For, In, Loop, Return, Defer,
     Copy,
 

@@ -25,6 +25,7 @@ impl Lexer {
             keywords.insert("true",   TokenType::True);
             keywords.insert("false",  TokenType::False);
             keywords.insert("fn",     TokenType::Function);
+            keywords.insert("type",   TokenType::Type);
             keywords.insert("struct", TokenType::Struct);
             keywords.insert("if",     TokenType::If);
             keywords.insert("then",   TokenType::Then);

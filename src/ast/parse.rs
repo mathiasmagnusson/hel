@@ -1,8 +1,8 @@
 use std::usize;
 
 use super::{
-    Argument, AssignmentOperator, BinaryOperator, Error, Expr, Field, File, Function, Ident,
-    Import, Literal, Path, Stmt, Struct, TokenStream, Type, UnaryOperator, Global
+    Argument, AssignmentOperator, BinaryOperator, Error, Expr, Field, File, Function, Global,
+    Ident, Import, Literal, Path, Stmt, Struct, TokenStream, Type, TypeDecl, UnaryOperator,
 };
 
 use crate::lex::TokenType;
@@ -45,6 +45,7 @@ impl Parse for File {
             imports: vec![],
             structs: vec![],
             functions: vec![],
+            type_decls: vec![],
             globals: vec![],
         };
 
@@ -52,6 +53,26 @@ impl Parse for File {
             let token = tokens.eat();
 
             match &token.ty {
+                TokenType::Type => {
+                    let ident = tokens.eat();
+                    let ident = if let TokenType::Ident(ident) = &ident.ty {
+                        Ident(ident.clone())
+                    } else {
+                        return Err(Error::new(ident.clone(), "Expected identifier".into()));
+                    };
+
+                    let equals = tokens.eat();
+                    if equals.ty != TokenType::Equal {
+                        return Err(Error::new(equals.clone(), "Expected equals sign".into()));
+                    }
+                    let (new_tokens, ty) = Type::parse(tokens)?;
+                    tokens = new_tokens;
+
+                    file.type_decls.push(TypeDecl {
+                        ident,
+                        ty,
+                    })
+                }
                 TokenType::Let => {
                     let ident = tokens.eat();
                     let ident = if let TokenType::Ident(ident) = &ident.ty {
@@ -74,19 +95,13 @@ impl Parse for File {
                     let (new_tokens, value) = Expr::parse(tokens)?;
                     tokens = new_tokens;
 
-                    file.globals.push(Global {
-                        ident,
-                        ty,
-                        value,
-                    })
+                    file.globals.push(Global { ident, ty, value })
                 }
                 TokenType::Import => {
                     let (new_tokens, path) = Path::parse(tokens)?;
                     tokens = new_tokens;
 
-                    file.imports.push(Import {
-                        path,
-                    });
+                    file.imports.push(Import { path });
                 }
                 TokenType::Function => {
                     let ident = tokens.eat();
@@ -240,7 +255,7 @@ impl Parse for File {
                 _ => {
                     return Err(Error::new(
                         token.clone(),
-                        "Expected import, function or struct definition".into(),
+                        "Expected import, function, type or struct definition".into(),
                     ))
                 }
             };
@@ -468,27 +483,34 @@ impl Parse for Expr {
                 (tokens, expr)
             }
             TokenType::At => {
-                let left_square = tokens.eat();
-                if left_square.ty != TokenType::LeftSquare {
+                let next = tokens.eat();
+                if !matches!(next.ty, TokenType::LeftSquare | TokenType::LeftParen) {
                     return Err(Error::new(
-                        left_square.clone(),
-                        "Expected opening square bracket".into(),
+                        next.clone(),
+                        "Expected opening square bracket or parenthesis".into(),
                     ));
                 }
 
+                let is_tuple = next.ty == TokenType::LeftParen;
+                let closing_type = if is_tuple {
+                    TokenType::RightParen
+                } else {
+                    TokenType::RightSquare
+                };
+
                 let mut items = vec![];
 
-                while tokens.peek().ty != TokenType::RightSquare {
+                while tokens.peek().ty != closing_type {
                     let (new_tokens, expr) = Expr::parse(tokens)?;
                     tokens = new_tokens;
                     items.push(expr);
 
                     let next = tokens.peek();
-                    match next.ty {
+                    match &next.ty {
                         TokenType::Comma => {
                             tokens.eat();
                         }
-                        TokenType::RightSquare => (),
+                        n if *n == closing_type => (),
                         _ => {
                             return Err(Error::new(
                                 next.clone(),
@@ -497,15 +519,19 @@ impl Parse for Expr {
                         }
                     }
                 }
-                let right_square = tokens.eat();
-                if right_square.ty != TokenType::RightSquare {
+                let next = tokens.eat();
+                if next.ty != closing_type {
                     return Err(Error::new(
-                        right_square.clone(),
+                        next.clone(),
                         "Expected closing square bracket".into(),
                     ));
                 }
 
-                (tokens, Expr::TupleOrArray(items))
+                if is_tuple {
+                    (tokens, Expr::Tuple(items))
+                } else {
+                    (tokens, Expr::Array(items))
+                }
             }
             TokenType::Loop => {
                 let (tokens, body) = Expr::parse(tokens)?;
@@ -758,7 +784,14 @@ impl Parse for Stmt {
                     tokens.eat(); // op
                     let (tokens, value) = Expr::parse(tokens)?;
 
-                    (tokens, Stmt::Assign { variable: expr, op, value })
+                    (
+                        tokens,
+                        Stmt::Assign {
+                            variable: expr,
+                            op,
+                            value,
+                        },
+                    )
                 } else {
                     (tokens, Stmt::Expr(expr))
                 }

@@ -1,4 +1,14 @@
+use std::collections::HashMap;
+
+use crate::ast::Path;
+use crate::package::{Package, Symbol, SymbolInner};
+
 const POINTER_SIZE: u8 = 8; // std::mem::size_of::<usize>() as u8;
+
+pub struct NamedTypes {
+    types: Vec<Type>,
+    paths: HashMap<Path, usize>,
+}
 
 #[derive(Debug)]
 pub enum Type {
@@ -7,10 +17,7 @@ pub enum Type {
     Tuple(Tuple), // TODO: just use struct with names '0', '1', ...?
     Reference(Box<Type>),
     List(Box<Type>),
-    Integer {
-        size: u8,
-        signed: bool,
-    },
+    Integer { size: u8, signed: bool },
     // TODO: add Char? or maybe just use Integer { size: 4, signed: false } (u32)
 }
 

@@ -11,9 +11,9 @@ impl fmt::Display for Type {
             Type::Reference(ty) => write!(f, "&{}", ty),
             Type::Path(path) => write!(f, "{}", path),
             Type::Tuple(types) => {
-                write!(f, "[")?;
+                write!(f, "(")?;
                 fmt_slice(f, ", ", types)?;
-                write!(f, "]")
+                write!(f, ")")
             }
             Type::List(ty) => write!(f, "[{}]", ty),
             Type::Function { args, ret } => {
@@ -37,7 +37,7 @@ impl fmt::Display for Value {
             Value::Integer(num) => write!(f, "{}", num),
             Value::String(s) => write!(f, "{}", s),
             Value::Bool(b) => write!(f, "{}", b),
-            Value::Reference(ptr) => write!(f, "<ref 0x{:x}>", ptr),
+            Value::Reference(ptr) => write!(f, "<ptr 0x{:x}>", ptr),
         }
     }
 }
@@ -93,10 +93,15 @@ impl fmt::Display for Expr {
                 }
                 write!(f, ".{}", field)?;
             }
-            Expr::TupleOrArray(items) => {
+            Expr::Array(items) => {
                 write!(f, "@[")?;
                 fmt_slice(f, ", ", items)?;
                 write!(f, "]")?;
+            }
+            Expr::Tuple(items) => {
+                write!(f, "@(")?;
+                fmt_slice(f, ", ", items)?;
+                write!(f, ")")?;
             }
             Expr::StructConstruct { path, vals } => {
                 write!(f, "{} @{{ ", path)?;
