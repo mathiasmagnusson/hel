@@ -1,132 +1,173 @@
 use std::collections::HashMap;
-use std::num::Wrapping;
+use std::iter::Peekable;
 
-use super::{Error, Errors, Token, TokenType};
+use super::{Token, TokenKind};
+use crate::diagnostics::Diagnostics;
+use crate::text::TextSpan;
 
-pub struct Lexer {
-    input: Vec<char>,
-    start: usize,
-    curr: usize,
-    line: usize,
-    tokens: Vec<Token>,
-    errors: Vec<Error>,
-    keywords: HashMap<&'static str, TokenType>,
+#[derive(Debug)]
+pub struct Lexer<Input: Iterator<Item = char>> {
+    input: Peekable<Input>,
+    position: usize,
+    diagnostics: Diagnostics,
+    keywords: HashMap<&'static str, TokenKind>,
 }
 
-impl Lexer {
-    #[rustfmt::skip]
-    pub fn new(input: &str) -> Self {
-        let mut keywords = HashMap::new();
-        {
-            keywords.insert("let",    TokenType::Let);
-            keywords.insert("null",   TokenType::Null);
-            keywords.insert("and",    TokenType::And);
-            keywords.insert("or",     TokenType::Or);
-            keywords.insert("true",   TokenType::True);
-            keywords.insert("false",  TokenType::False);
-            keywords.insert("fn",     TokenType::Function);
-            keywords.insert("type",   TokenType::Type);
-            keywords.insert("struct", TokenType::Struct);
-            keywords.insert("if",     TokenType::If);
-            keywords.insert("then",   TokenType::Then);
-            keywords.insert("else",   TokenType::Else);
-            keywords.insert("for",    TokenType::For);
-            keywords.insert("in",     TokenType::In);
-            keywords.insert("loop",   TokenType::Loop);
-            keywords.insert("return", TokenType::Return);
-            keywords.insert("defer",  TokenType::Defer);
-            keywords.insert("copy",   TokenType::Copy);
-            keywords.insert("import", TokenType::Import);
-        }
-
+impl<Input: Iterator<Item = char>> Lexer<Input> {
+    pub fn new(input: Input) -> Self {
         Self {
-            input: input.chars().collect(),
-            start: 0,
-            curr: 0,
-            line: 1,
-            tokens: vec![],
-            errors: vec![],
-            keywords,
+            input: input.peekable(),
+            position: 0,
+            diagnostics: Diagnostics::default(),
+            #[rustfmt::skip]
+            keywords: [
+                ("let",    TokenKind::Let),
+                ("null",   TokenKind::Null),
+                ("and",    TokenKind::And),
+                ("or",     TokenKind::Or),
+                ("true",   TokenKind::True),
+                ("false",  TokenKind::False),
+                ("fn",     TokenKind::Function),
+                ("type",   TokenKind::Type),
+                ("struct", TokenKind::Struct),
+                ("if",     TokenKind::If),
+                ("then",   TokenKind::Then),
+                ("else",   TokenKind::Else),
+                ("for",    TokenKind::For),
+                ("in",     TokenKind::In),
+                ("loop",   TokenKind::Loop),
+                ("return", TokenKind::Return),
+                ("defer",  TokenKind::Defer),
+                ("copy",   TokenKind::Copy),
+                ("import", TokenKind::Import),
+            ].iter().cloned().collect(),
         }
     }
-    pub fn tokenize(mut self) -> Result<Vec<Token>, Errors> {
-        while !self.is_eof() {
-            self.start = self.curr;
-            self.next_token();
-        }
 
-        self.tokens
-            .push(Token::new(TokenType::EOF, String::new(), self.line));
-
-        if self.errors.len() > 0 {
-            Err(Errors(self.errors))
-        } else {
-            Ok(self.tokens)
-        }
+    pub fn diagnostics(&self) -> &Diagnostics {
+        &self.diagnostics
     }
-    fn next_token(&mut self) {
-        match self.eat() {
-            '(' => self.add_token(TokenType::LeftParen),
-            ')' => self.add_token(TokenType::RightParen),
-            '[' => self.add_token(TokenType::LeftSquare),
-            ']' => self.add_token(TokenType::RightSquare),
-            '{' => self.add_token(TokenType::LeftCurly),
-            '}' => self.add_token(TokenType::RightCurly),
-            ',' => self.add_token(TokenType::Comma),
-            '.' => self.add_token(TokenType::Dot),
-            '?' => self.add_token(TokenType::Quest),
-            '@' => self.add_token(TokenType::At),
-            '&' => self.add_token(TokenType::Amp),
-            '$' => self.add_token(TokenType::Dollar),
+
+    fn is_eof(&mut self) -> bool {
+        self.input.peek().is_none()
+    }
+
+    fn eat(&mut self) -> char {
+        self.position += 1;
+        self.input.next().unwrap_or('\0')
+    }
+
+    fn peek(&mut self) -> char {
+        self.input.peek().copied().unwrap_or('\0')
+    }
+
+    fn lex_string(&mut self) -> TokenKind {
+        let mut value = String::new();
+        loop {
+            if self.is_eof() {
+                self.diagnostics.unterminated_string_literal(self.position);
+                break;
+            }
+            match self.eat() {
+                '"' => {
+                    break;
+                }
+                '\\' => match self.eat() {
+                    '"' => value.push('"'),
+                    '\\' => value.push('\\'),
+                    'n' => value.push('\n'),
+                    't' => value.push('\t'),
+                    'r' => value.push('\r'),
+                    c => {
+                        self.diagnostics.invalid_escape_character(self.position, c);
+                    }
+                },
+                c => {
+                    value.push(c);
+                }
+            }
+        }
+        TokenKind::String(value)
+    }
+}
+
+impl<Input: Iterator<Item = char>> Iterator for Lexer<Input> {
+    type Item = Token;
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.is_eof() {
+            return None;
+        }
+
+        let start = self.position;
+
+        let kind = match self.eat() {
+            '(' => TokenKind::LeftParen,
+            ')' => TokenKind::RightParen,
+            '[' => TokenKind::LeftSquare,
+            ']' => TokenKind::RightSquare,
+            '{' => TokenKind::LeftCurly,
+            '}' => TokenKind::RightCurly,
+            ',' => TokenKind::Comma,
+            '.' => TokenKind::Dot,
+            '?' => TokenKind::Quest,
+            '@' => TokenKind::At,
+            '$' => TokenKind::Dollar,
             ':' => match self.peek() {
                 ':' => {
                     self.eat();
-                    self.add_token(TokenType::ColonColon);
+                    TokenKind::ColonColon
                 }
-                _ => self.add_token(TokenType::Colon),
+                _ => TokenKind::Colon,
+            },
+            '&' => match self.peek() {
+                '=' => {
+                    self.eat();
+                    TokenKind::AmpEq
+                }
+                _ => TokenKind::Amp,
             },
             '+' => match self.peek() {
                 '=' => {
                     self.eat();
-                    self.add_token(TokenType::PlusEq);
+                    TokenKind::PlusEq
                 }
-                _ => self.add_token(TokenType::Plus),
+                _ => TokenKind::Plus,
             },
             '-' => match self.peek() {
                 '=' => {
                     self.eat();
-                    self.add_token(TokenType::MinusEq);
+                    TokenKind::MinusEq
                 }
                 '>' => {
                     self.eat();
-                    self.add_token(TokenType::RightArrow);
+                    TokenKind::RightArrow
                 }
-                _ => self.add_token(TokenType::Minus),
+                _ => TokenKind::Minus,
             },
             '%' => match self.peek() {
                 '=' => {
                     self.eat();
-                    self.add_token(TokenType::PercentEq);
+                    TokenKind::PercentEq
                 }
-                _ => self.add_token(TokenType::Percent),
+                _ => TokenKind::Percent,
             },
             '|' => match self.peek() {
                 '=' => {
                     self.eat();
-                    self.add_token(TokenType::BarEq);
+                    TokenKind::BarEq
                 }
                 '>' => {
                     self.eat();
-                    self.add_token(TokenType::BarGt);
+                    TokenKind::BarGt
                 }
-                _ => self.add_token(TokenType::Bar),
+                _ => TokenKind::Bar,
             },
             '^' => match self.peek() {
                 '=' => {
                     self.eat();
-                    self.add_token(TokenType::CaretEq);
+                    TokenKind::CaretEq
                 }
-                _ => self.add_token(TokenType::Caret),
+                _ => TokenKind::Caret,
             },
             '*' => match self.peek() {
                 '*' => {
@@ -134,73 +175,67 @@ impl Lexer {
                     match self.peek() {
                         '=' => {
                             self.eat();
-                            self.add_token(TokenType::AsteriskAsteriskEq)
+                            TokenKind::AsteriskAsteriskEq
                         }
-                        _ => self.add_token(TokenType::AsteriskAsterisk),
+                        _ => TokenKind::AsteriskAsterisk,
                     }
                 }
                 '=' => {
                     self.eat();
-                    self.add_token(TokenType::AsteriskEq)
+                    TokenKind::AsteriskEq
                 }
-                _ => self.add_token(TokenType::Asterisk),
+                _ => TokenKind::Asterisk,
             },
             '/' => match self.peek() {
                 '=' => {
                     self.eat();
-                    self.add_token(TokenType::SlashEq)
+                    TokenKind::SlashEq
                 }
-                _ => self.add_token(TokenType::Slash),
+                _ => TokenKind::Slash,
             },
-            '!' => {
-                match self.peek() {
-                    '=' => {
-                        self.eat();
-                        self.add_token(TokenType::BangEq)
-                    }
-                    _ => self.add_token(TokenType::Bang),
-                };
-            }
-            '=' => {
-                match self.peek() {
-                    '=' => {
-                        self.eat();
-                        self.add_token(TokenType::EqualEqual)
-                    }
-                    _ => self.add_token(TokenType::Equal),
-                };
-            }
-            '<' => {
-                match self.peek() {
-                    '=' => {
-                        self.eat();
-                        self.add_token(TokenType::LessEqual)
-                    }
-                    _ => self.add_token(TokenType::Less),
-                };
-            }
-            '>' => {
-                match self.peek() {
-                    '=' => {
-                        self.eat();
-                        self.add_token(TokenType::GreaterEqual)
-                    }
-                    _ => self.add_token(TokenType::Greater),
-                };
-            }
+            '!' => match self.peek() {
+                '=' => {
+                    self.eat();
+                    TokenKind::BangEq
+                }
+                _ => TokenKind::Bang,
+            },
+            '=' => match self.peek() {
+                '=' => {
+                    self.eat();
+                    TokenKind::EqualEqual
+                }
+                _ => TokenKind::Equal,
+            },
+            '<' => match self.peek() {
+                '=' => {
+                    self.eat();
+                    TokenKind::LessEqual
+                }
+                _ => TokenKind::Less,
+            },
+            '>' => match self.peek() {
+                '=' => {
+                    self.eat();
+                    TokenKind::GreaterEqual
+                }
+                _ => TokenKind::Greater,
+            },
             '#' => match self.peek() {
-                '(' => {
+                '-' => {
                     let mut depth = 1;
                     loop {
                         if self.is_eof() {
-                            break self.error("unterminated multi-line comment");
+                            self.diagnostics
+                                .unterminated_multiline_comment(self.position);
+                            break;
                         }
                         let a = self.eat();
                         let b = self.peek();
 
-                        if (a, b) == ('#', '(') {
+                        if (a, b) == ('#', '-') {
                             depth += 1;
-                        } else if (a, b) == (')', '#') {
+                        } else if (a, b) == ('-', '#') {
                             depth -= 1;
                         }
                         if depth == 0 {
@@ -208,108 +243,93 @@ impl Lexer {
                             break;
                         }
                     }
+                    TokenKind::Comment
                 }
                 _ => {
                     while self.peek() != '\n' {
                         self.eat();
                     }
+                    TokenKind::Comment
                 }
             },
-            '"' => {
-                self.next_string();
-            }
+            '"' => self.lex_string(),
             c @ '0'..='9' => {
-                let p = |c| (c as u8 - b'0') as usize;
-                let mut literal: Wrapping<usize> = Wrapping::<usize>(p(c));
-                while matches!(self.peek(), '0'..='9') {
-                    literal *= Wrapping(10);
-                    literal += Wrapping(p(self.eat()));
+                let base = match self.peek() {
+                    'b' => {
+                        self.eat();
+                        2
+                    }
+                    'x' => {
+                        self.eat();
+                        16
+                    }
+                    _ => 10,
+                };
+                let get_digit_value = |d| {
+                    "0123456789abcdef"
+                        .bytes()
+                        .take(base)
+                        .enumerate()
+                        .find(|(_, digit)| *digit as char == d)
+                        .map(|(i, _)| i)
+                };
+                let mut value = get_digit_value(c).unwrap();
+                while let Some(val) = get_digit_value(self.peek()) {
+                    self.eat();
+                    value *= base;
+                    value += val;
                 }
-                self.add_token(TokenType::Integer(literal.0));
+
+                if self.peek() == '.' || self.peek() == 'e' {
+                    let mut s = value.to_string();
+                    if self.peek() == '.' {
+                        s.push(self.eat());
+                        while self.peek().is_ascii_digit() {
+                            s.push(self.eat());
+                        }
+                    }
+                    if self.peek() == 'e' {
+                        s.push(self.eat());
+                        while self.peek().is_ascii_digit() {
+                            s.push(self.eat());
+                        }
+                    }
+                    match s.parse() {
+                        Ok(value) => TokenKind::Float(value),
+                        Err(_err) => {
+                            self.diagnostics
+                                .invalid_float_literal(TextSpan::new(start, self.position));
+                            TokenKind::BadCharacter
+                        }
+                    }
+                } else {
+                    TokenKind::Integer(value)
+                }
             }
-            ' ' | '\r' | '\t' => {}
-            '\n' => {
-                self.line += 1;
+            w if w == '_' || w.is_alphabetic() => {
+                let mut value = String::new();
+                value.push(w);
+                while self.peek() == '_' || self.peek().is_alphanumeric() {
+                    value.push(self.eat());
+                }
+
+                if let Some(keyword) = self.keywords.get(value.as_str()) {
+                    keyword.clone()
+                } else {
+                    TokenKind::Ident(value)
+                }
             }
-            'a'..='z' | 'A'..='Z' | '_' => {
-                while matches!(self.peek(), 'a' ..= 'z' | 'A' ..= 'Z' | '_' | '0' ..= '9') {
+            s if s.is_whitespace() => {
+                while self.peek().is_whitespace() {
                     self.eat();
                 }
-                let literal: String = self.input[self.start..self.curr].iter().collect();
-
-                if let Some(keyword) = self.keywords.get(literal.as_str()) {
-                    let keyword = keyword.clone();
-                    self.add_token(keyword);
-                } else {
-                    self.add_token(TokenType::Ident(literal));
-                }
+                TokenKind::Whitespace
             }
-            c => self.error(format!("Unexpected character {}", c)),
+            c => {
+                self.diagnostics.unexpected_character(self.position, c);
+                TokenKind::BadCharacter
+            }
         };
-    }
-    fn next_string(&mut self) {
-        let mut literal = String::new();
-        loop {
-            if self.is_eof() {
-                self.error("Unterminated string");
-                return;
-            }
-            match self.eat() {
-                '"' => {
-                    break;
-                }
-                '\\' => match self.eat() {
-                    '"' => literal.push('"'),
-                    '\\' => literal.push('\\'),
-                    'n' => literal.push('\n'),
-                    't' => literal.push('\t'),
-                    'r' => literal.push('\r'),
-                    c => {
-                        self.error(format!("Invalid escape character {}", c));
-                        literal.push('�');
-                    }
-                },
-                c => {
-                    literal.push(c);
-                }
-            }
-        }
-        self.add_token(TokenType::String(literal));
-    }
-    fn error<S: Into<String>>(&mut self, message: S) {
-        self.errors.push(Error::new(message.into(), self.line));
-    }
-    fn is_eof(&self) -> bool {
-        self.curr >= self.input.len()
-    }
-    fn eat(&mut self) -> char {
-        if self.is_eof() {
-            '\0'
-        } else {
-            self.curr += 1;
-            self.input[self.curr - 1]
-        }
-    }
-    fn peek(&self) -> char {
-        if self.is_eof() {
-            '\0'
-        } else {
-            self.input[self.curr]
-        }
-    }
-    #[allow(dead_code)]
-    fn peek_n(&self, n: usize) -> char {
-        if self.curr + n >= self.input.len() {
-            '\0'
-        } else {
-            self.input[self.curr + n]
-        }
-    }
-    fn add_token(&mut self, ty: TokenType) {
-        self.tokens.push(Token::new(
-            ty,
-            self.input[self.start..self.curr].iter().collect::<String>(),
-            self.line,
-        ))
+        return Some(Token::new(kind, TextSpan::new(start, self.position)));
     }
 }

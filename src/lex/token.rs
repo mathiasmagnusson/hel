@@ -1,63 +1,65 @@
-use std::fmt;
+use derive_getters::Getters;
 
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum TokenType {
+use crate::text::TextSpan;
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum TokenKind {
+    // One char
     LeftParen, RightParen,
     LeftCurly, RightCurly,
     LeftSquare, RightSquare,
-    Comma, Dot,
+    Comma,
+    Dot,
     Quest,
-    At, Amp,
+    At,
+    Dollar,
+    Colon,
 
-    Plus, Minus, Percent, Slash,
-    Dollar, Bar, Caret,
-    Asterisk, AsteriskAsterisk,
+    // One char, and optional =
+    Plus, PlusEq,
+    Minus, MinusEq,
+    Percent, PercentEq,
+    Slash, SlashEq,
+    Asterisk, AsteriskEq,
     Bang, BangEq,
     Equal, EqualEqual,
     Greater, GreaterEqual,
     Less, LessEqual,
-    PlusEq, MinusEq, PercentEq,
-    BarEq, CaretEq,
-    AsteriskEq, AsteriskAsteriskEq, SlashEq,
-    RightArrow, BarGt,
-    Colon, ColonColon,
+    Amp, AmpEq,
+    Bar, BarEq,
+    Caret, CaretEq,
 
-    Ident(String), String(String), Integer(usize),
+    // Two char
+    RightArrow,
+    BarGt,
+    ColonColon,
 
+    // Two char, and optional =
+    AsteriskAsterisk, AsteriskAsteriskEq,
+
+    // Keywords
     Let, Null,
     And, Or, True, False,
     Function, Type, Struct, Import,
     If, Then, Else, For, In, Loop, Return, Defer,
     Copy,
 
-    EOF,
+    // Special
+    Whitespace, Comment, BadCharacter,
+    Ident(String), String(String), Integer(usize), Float(f64),
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Getters)]
 pub struct Token {
-    pub ty: TokenType,
-    pub lexeme: String,
-    pub line: usize,
+    kind: TokenKind,
+    span: TextSpan,
 }
 
 impl Token {
-    pub fn new(ty: TokenType, lexeme: String, line: usize) -> Self {
+    pub const fn new(kind: TokenKind, span: TextSpan) -> Self {
         Self {
-            ty,
-            lexeme: lexeme.into(),
-            line,
+            kind,
+            span
         }
-    }
-}
-
-impl fmt::Display for Token {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(
-            f,
-            "{:?} token {} at line {}",
-            self.ty, self.lexeme, self.line,
-        )?;
-
-        Ok(())
     }
 }

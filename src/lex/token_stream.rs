@@ -1,4 +1,5 @@
-use super::Token;
+use super::{Token, TokenKind};
+use crate::text::TextSpan;
 
 #[derive(Clone, Copy)]
 pub struct TokenStream<'t> {
@@ -11,9 +12,8 @@ impl TokenStream<'_> {
         self
             .tokens
             .get(i)
-            .unwrap_or(self.tokens.last()
-                .expect("Empty token array")
-            )
+            .or(self.tokens.last())
+            .expect("Empty tokenstream")
     }
     pub fn eat(&mut self) -> &Token {
         self.i += 1;
