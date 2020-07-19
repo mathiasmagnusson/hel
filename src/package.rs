@@ -2,12 +2,14 @@ use std::borrow::Cow;
 use std::collections::{HashSet, VecDeque};
 use std::{fs, iter, path};
 
-use crate::ast::{self, Function, Global, Ident, Path, Struct, TypeDecl};
-use crate::{types::Type, File, Lexer, Parse, TokenStream};
+use crate::ast::{Function, Global, Ident, Path, Struct, Type, TypeDecl};
+use crate::types;
+use crate::{File, Lexer, Parse, TokenStream};
 
 #[derive(Debug)]
 pub struct Package {
     pub symbols: Vec<Symbol>,
+    pub named_types: Vec<types::Type>,
 }
 
 #[derive(Debug)]
@@ -20,8 +22,8 @@ pub struct Symbol {
 #[derive(Debug)]
 pub enum SymbolInner {
     Function(Function),
-    TypeDecl(TypeDecl),
-    Struct(Struct),
+    TypeDecl(TypeDecl, usize),
+    Struct(Struct, usize),
     Global(Global),
 }
 
@@ -29,18 +31,38 @@ impl Symbol {
     pub fn get_path(&self) -> impl Iterator<Item = &Ident> {
         self.location.0.iter().chain(iter::once(match &self.inner {
             SymbolInner::Function(Function { ident, .. }) => ident,
-            SymbolInner::TypeDecl(TypeDecl { ident, .. }) => ident,
-            SymbolInner::Struct(Struct { ident, .. }) => ident,
+            SymbolInner::TypeDecl(TypeDecl { ident, .. }, _) => ident,
+            SymbolInner::Struct(Struct { ident, .. }, _) => ident,
             SymbolInner::Global(Global { ident, .. }) => ident,
         }))
     }
 }
 
 impl Package {
-    pub fn new<P: AsRef<path::Path>>(target: &P) -> Result<Self, anyhow::Error> {
+    pub fn new<AsPath: AsRef<path::Path>>(target: &AsPath) -> Result<Self, anyhow::Error> {
         let target = target.as_ref();
 
-        let mut ret = Self { symbols: vec![] };
+        let mut ret = Self {
+            symbols: vec![],
+            named_types: vec![],
+        };
+
+        for &size in &[1, 2, 4, 8] {
+            for &signed in &[false, true] {
+                ret.symbols.push(Symbol {
+                    location: Path(vec![Ident("hel".into())]),
+                    imports: vec![],
+                    inner: SymbolInner::TypeDecl(
+                        TypeDecl {
+                            ident: Ident(format!("{}{}", if signed { 's' } else { 'u' }, size * 8)),
+                            ty: Type::Path(Path(vec![])),
+                        },
+                        ret.symbols.len(),
+                    ),
+                });
+                ret.named_types.push(types::Type::Integer { size, signed })
+            }
+        }
 
         // TODO: check for project conf file and read that first if present
 
@@ -105,16 +127,18 @@ impl Package {
                 ret.symbols.push(Symbol {
                     location: hel_path.clone(),
                     imports: file.imports.iter().map(|imp| imp.path.clone()).collect(),
-                    inner: SymbolInner::TypeDecl(type_decl.clone()),
-                })
+                    inner: SymbolInner::TypeDecl(type_decl.clone(), ret.named_types.len()),
+                });
+                ret.named_types.push(types::Type::Never);
             }
 
             for struc in &file.structs {
                 ret.symbols.push(Symbol {
                     location: hel_path.clone(),
                     imports: file.imports.iter().map(|imp| imp.path.clone()).collect(),
-                    inner: SymbolInner::Struct(struc.clone()),
+                    inner: SymbolInner::Struct(struc.clone(), ret.named_types.len()),
                 });
+                ret.named_types.push(types::Type::Never);
             }
 
             for global in &file.globals {
@@ -123,6 +147,28 @@ impl Package {
                     imports: file.imports.iter().map(|imp| imp.path.clone()).collect(),
                     inner: SymbolInner::Global(global.clone()),
                 });
+            }
+        }
+
+        for symbol in &ret.symbols {
+            match &symbol.inner {
+                SymbolInner::TypeDecl(type_decl, id) => {
+                    if ret.named_types[*id] != types::Type::Never {
+                        continue;
+                    }
+                    ret.named_types[*id] = ret.get_type(&type_decl.ty, symbol)?;
+                }
+                SymbolInner::Struct(struc, id) => {
+                    if ret.named_types[*id] != types::Type::Never {
+                        continue;
+                    }
+                    let mut fields = Vec::with_capacity(struc.fields.len());
+                    for field in &struc.fields {
+                        fields.push((field.name.0.clone(), ret.get_type(&field.ty, symbol)?));
+                    }
+                    ret.named_types[*id] = types::Type::Struct(types::Struct { fields });
+                }
+                _ => {}
             }
         }
 
@@ -154,12 +200,47 @@ impl Package {
         None
     }
 
-    pub fn get_type(&self, ty: &ast::Type, from: &Symbol) -> Option<Type> {
+    pub fn get_type(&self, ty: &Type, from: &Symbol) -> anyhow::Result<types::Type> {
         match ty {
-            ast::Type::Path(path) => {
-                unimplemented!()
+            Type::Path(path) => match self.get_symbol(path, from) {
+                Some(Symbol {
+                    inner: SymbolInner::TypeDecl(_, id),
+                    ..
+                }) => Ok(types::Type::Named(*id)),
+                Some(Symbol {
+                    inner: SymbolInner::Struct(_, id),
+                    ..
+                }) => Ok(types::Type::Named(*id)),
+                Some(_) => Err(anyhow::anyhow!(
+                    "Symbol {} is not a type (at {})",
+                    path,
+                    Path(from.get_path().cloned().collect::<Vec<_>>())
+                )),
+                None => Err(anyhow::anyhow!(
+                    "Unresolvable symbol {} in {}",
+                    path,
+                    Path(from.get_path().cloned().collect::<Vec<_>>())
+                )),
+            },
+            Type::Reference(inner) => Ok(types::Type::Reference(box self.get_type(inner, from)?)),
+            Type::Tuple(inner) => {
+                let mut types = Vec::with_capacity(inner.len());
+                for ty in inner {
+                    types.push(self.get_type(ty, from)?);
+                }
+                Ok(types::Type::Tuple(types))
             }
-            _ => unimplemented!()
+            Type::List(inner) => Ok(types::Type::List(box self.get_type(inner, from)?)),
+            Type::Function { args, ret } => {
+                let mut parameters = Vec::with_capacity(args.len());
+                for ty in args {
+                    parameters.push(self.get_type(ty, from)?);
+                }
+                Ok(types::Type::Function(types::Function {
+                    parameters,
+                    return_type: box self.get_type(ret, from)?,
+                }))
+            }
         }
     }
 }

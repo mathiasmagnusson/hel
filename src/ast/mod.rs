@@ -83,19 +83,19 @@ pub struct Argument {
 #[derive(Debug, Clone)]
 pub struct TypeDecl {
     pub ident: Ident,
-    ty: Type,
+    pub ty: Type,
 }
 
 #[derive(Debug, Clone)]
 pub struct Struct {
     pub ident: Ident,
-    fields: Vec<Field>,
+    pub fields: Vec<Field>,
 }
 
 #[derive(Debug, Clone)]
 pub struct Field {
-    name: Ident,
-    ty: Type,
+    pub name: Ident,
+    pub ty: Type,
 }
 
 #[derive(Debug, Clone)]

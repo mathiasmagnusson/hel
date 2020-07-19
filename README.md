@@ -8,3 +8,4 @@
 - [ ] Add standard library
 - [ ] Allow omitting type for struct creation e.g. `@{ x: 1 }` instead of `Vector @{ x: 1 }`
 - [ ] Generator functions
+- [ ] Error handling and messages (in compiler)

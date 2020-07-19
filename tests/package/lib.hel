@@ -1,1 +1,5 @@
-fn answer() = 42
+struct LinkedList {
+	next: &LinkedList,
+	prev: &LinkedList,
+	val: u32,
+}

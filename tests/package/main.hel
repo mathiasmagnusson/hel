@@ -1,7 +1,25 @@
-import lib
-import second
+import lib::LinkedList
 
 fn main() {
-	println(lib::answer())
-	second::run()
+	let i = 0
+	let head = LinkedList @{ prev: null, next: null, val: 0 }
+	let current = &head
+	loop {
+		i += 1
+		if i >= 10 break
+		current.next = alloc(100) # varför inte ta i?
+		$current.next = LinkedList @{
+			prev: current,
+			next: null,
+			val: i
+		}
+		current = current.next
+	}
+
+	current = &head
+	loop {
+		print(current.val)
+		current = current.next
+		if current == null break
+	}
 }
