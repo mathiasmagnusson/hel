@@ -3,9 +3,10 @@ use crate::lex::{Lexer, TokenKind};
 #[test]
 fn single_tokens() {
     for (text, kind) in basic_tokens().iter().chain(&tokens_with_values()) {
-        let mut lexer = Lexer::new(text.chars());
-        assert_eq!(lexer.next().map(|t| t.kind().clone()).as_ref(), Some(kind));
-        assert!(lexer.next().is_none());
+        let mut lexer = Lexer::from(*text);
+        assert_eq!(lexer.eat().kind(), kind, "Lexing: {}", text);
+        assert_eq!(*lexer.eat().kind(), TokenKind::EOF);
+        assert!(lexer.diagnostics().is_empty());
     }
 }
 
@@ -14,20 +15,19 @@ fn token_pairs() {
     for (text1, kind1) in basic_tokens().iter().chain(&tokens_with_values()) {
         for (text2, kind2) in basic_tokens().iter().chain(&tokens_with_values()) {
             if require_separation(kind1, kind2) {
-                let mut lexer = Lexer::new(text1.chars().chain(" ".chars()).chain(text2.chars()));
-                assert_eq!(lexer.next().map(|t| t.kind().clone()).as_ref(), Some(kind1));
-                assert_eq!(
-                    lexer.next().map(|t| t.kind().clone()).as_ref(),
-                    Some(&TokenKind::Whitespace)
-                );
-                assert_eq!(lexer.next().map(|t| t.kind().clone()).as_ref(), Some(kind2));
-                assert!(lexer.next().is_none());
+                let input = &format!("{} {}", text1, text2);
+                let mut lexer = Lexer::from(input);
+                assert_eq!(lexer.eat().kind(), kind1);
+                assert_eq!(*lexer.eat().kind(), TokenKind::Whitespace);
+                assert_eq!(lexer.eat().kind(), kind2);
+                assert_eq!(*lexer.eat().kind(), TokenKind::EOF);
                 assert!(lexer.diagnostics().is_empty());
             } else {
-                let mut lexer = Lexer::new(text1.chars().chain(text2.chars()));
-                assert_eq!(lexer.next().map(|t| t.kind().clone()).as_ref(), Some(kind1));
-                assert_eq!(lexer.next().map(|t| t.kind().clone()).as_ref(), Some(kind2));
-                assert!(lexer.next().is_none());
+                let input = &format!("{}{}", text1, text2);
+                let mut lexer = Lexer::from(input);
+                assert_eq!(lexer.eat().kind(), kind1);
+                assert_eq!(lexer.eat().kind(), kind2);
+                assert_eq!(*lexer.eat().kind(), TokenKind::EOF);
                 assert!(lexer.diagnostics().is_empty());
             }
         }
@@ -42,13 +42,10 @@ fn whitespace() {
             for &c3 in whitespace {
                 for &c4 in whitespace {
                     for &c5 in whitespace {
-                        let whitespace = &[c1, c2, c3, c4, c5];
-                        let mut lexer = Lexer::new(whitespace.iter().cloned());
-                        assert_eq!(
-                            lexer.next().map(|t| t.kind().clone()),
-                            Some(TokenKind::Whitespace)
-                        );
-                        assert!(lexer.next().is_none());
+                        let whitespace = &format!("{}{}{}{}{}", c1, c2, c3, c4, c5);
+                        let mut lexer = Lexer::from(whitespace);
+                        assert_eq!(*lexer.eat().kind(), TokenKind::Whitespace);
+                        assert_eq!(*lexer.eat().kind(), TokenKind::EOF);
                         assert!(lexer.diagnostics().is_empty());
                     }
                 }
@@ -60,13 +57,10 @@ fn whitespace() {
             for &c3 in whitespace {
                 for &c4 in whitespace {
                     for &c5 in whitespace {
-                        let whitespace = &[c1, c2, c3, c4, c5];
-                        let mut lexer = Lexer::new(whitespace.iter().cloned());
-                        assert_eq!(
-                            lexer.next().map(|t| t.kind().clone()),
-                            Some(TokenKind::Whitespace)
-                        );
-                        assert!(lexer.next().is_none());
+                        let whitespace = &format!("{}{}{}{}{}", c1, c2, c3, c4, c5);
+                        let mut lexer = Lexer::from(whitespace);
+                        assert_eq!(*lexer.eat().kind(), TokenKind::Whitespace);
+                        assert_eq!(*lexer.eat().kind(), TokenKind::EOF);
                         assert!(lexer.diagnostics().is_empty());
                     }
                 }
@@ -113,12 +107,15 @@ fn require_separation(kind1: &TokenKind, kind2: &TokenKind) -> bool {
         | (Bar, Greater)
         | (Bar, GreaterEqual)
         | (Caret, Equal)
-        | (Caret, EqualEqual) => true,
+        | (Caret, EqualEqual)
+        | (Dot, Dot)
+        | (Dot, DotDot) => true,
         (kw1, kw2) if is_keyword(kw1) && is_keyword(kw2) => true,
         (kw, Integer(_)) if is_keyword(kw) => true,
         (kw, Ident(_)) if is_keyword(kw) => true,
         (kw, Float(_)) if is_keyword(kw) => true,
         (Integer(_), Dot) => true,
+        (Integer(_), DotDot) => true,
         (Integer(_), kw) if is_keyword(kw) => true,
         (Integer(_), Integer(_)) => true,
         (Integer(_), Float(_)) => true,
@@ -169,7 +166,7 @@ fn tokens_with_values() -> [(&'static str, TokenKind); 7] {
     ]
 }
 
-fn basic_tokens() -> [(&'static str, TokenKind); 60] {
+fn basic_tokens() -> [(&'static str, TokenKind); 61] {
     [
         ("(", TokenKind::LeftParen),
         (")", TokenKind::RightParen),
@@ -178,11 +175,11 @@ fn basic_tokens() -> [(&'static str, TokenKind); 60] {
         ("[", TokenKind::LeftSquare),
         ("]", TokenKind::RightSquare),
         (",", TokenKind::Comma),
-        (".", TokenKind::Dot),
         ("?", TokenKind::Quest),
         ("@", TokenKind::At),
         ("$", TokenKind::Dollar),
         (":", TokenKind::Colon),
+        (".", TokenKind::Dot),
         //
         ("+", TokenKind::Plus),
         ("+=", TokenKind::PlusEq),
@@ -209,6 +206,7 @@ fn basic_tokens() -> [(&'static str, TokenKind); 60] {
         ("^", TokenKind::Caret),
         ("^=", TokenKind::CaretEq),
         //
+        ("..", TokenKind::DotDot),
         ("->", TokenKind::RightArrow),
         ("|>", TokenKind::BarGt),
         ("::", TokenKind::ColonColon),

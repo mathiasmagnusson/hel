@@ -1,63 +1,84 @@
 use std::collections::HashMap;
 use std::iter::Peekable;
+use std::str::Chars;
 
 use super::{Token, TokenKind};
 use crate::diagnostics::Diagnostics;
 use crate::text::TextSpan;
 
 #[derive(Debug)]
-pub struct Lexer<Input: Iterator<Item = char>> {
-    input: Peekable<Input>,
+pub struct Lexer<'a> {
+    input: Peekable<Chars<'a>>,
     position: usize,
     diagnostics: Diagnostics,
     keywords: HashMap<&'static str, TokenKind>,
+    peeked: Option<Token>,
 }
 
-impl<Input: Iterator<Item = char>> Lexer<Input> {
-    pub fn new(input: Input) -> Self {
+impl<'a> From<&'a String> for Lexer<'a> {
+    fn from(input: &'a String) -> Self {
         Self {
-            input: input.peekable(),
+            input: input.chars().peekable(),
             position: 0,
             diagnostics: Diagnostics::default(),
-            #[rustfmt::skip]
-            keywords: [
-                ("let",    TokenKind::Let),
-                ("null",   TokenKind::Null),
-                ("and",    TokenKind::And),
-                ("or",     TokenKind::Or),
-                ("true",   TokenKind::True),
-                ("false",  TokenKind::False),
-                ("fn",     TokenKind::Function),
-                ("type",   TokenKind::Type),
-                ("struct", TokenKind::Struct),
-                ("if",     TokenKind::If),
-                ("then",   TokenKind::Then),
-                ("else",   TokenKind::Else),
-                ("for",    TokenKind::For),
-                ("in",     TokenKind::In),
-                ("loop",   TokenKind::Loop),
-                ("return", TokenKind::Return),
-                ("defer",  TokenKind::Defer),
-                ("copy",   TokenKind::Copy),
-                ("import", TokenKind::Import),
-            ].iter().cloned().collect(),
+            keywords: Self::get_keywords(),
+            peeked: None,
         }
     }
+}
 
+impl<'a> From<&'a str> for Lexer<'a> {
+    fn from(input: &'a str) -> Self {
+        Self {
+            input: input.chars().peekable(),
+            position: 0,
+            diagnostics: Diagnostics::default(),
+            keywords: Self::get_keywords(),
+            peeked: None,
+        }
+    }
+}
+
+impl<'a> Lexer<'a> {
     pub fn diagnostics(&self) -> &Diagnostics {
         &self.diagnostics
+    }
+
+    #[rustfmt::skip]
+    fn get_keywords() -> HashMap<&'static str, TokenKind> {
+        [
+            ("let",    TokenKind::Let),
+            ("null",   TokenKind::Null),
+            ("and",    TokenKind::And),
+            ("or",     TokenKind::Or),
+            ("true",   TokenKind::True),
+            ("false",  TokenKind::False),
+            ("fn",     TokenKind::Function),
+            ("type",   TokenKind::Type),
+            ("struct", TokenKind::Struct),
+            ("if",     TokenKind::If),
+            ("then",   TokenKind::Then),
+            ("else",   TokenKind::Else),
+            ("for",    TokenKind::For),
+            ("in",     TokenKind::In),
+            ("loop",   TokenKind::Loop),
+            ("return", TokenKind::Return),
+            ("defer",  TokenKind::Defer),
+            ("copy",   TokenKind::Copy),
+            ("import", TokenKind::Import),
+        ].iter().cloned().collect()
     }
 
     fn is_eof(&mut self) -> bool {
         self.input.peek().is_none()
     }
 
-    fn eat(&mut self) -> char {
+    fn eat_char(&mut self) -> char {
         self.position += 1;
         self.input.next().unwrap_or('\0')
     }
 
-    fn peek(&mut self) -> char {
+    fn peek_char(&mut self) -> char {
         self.input.peek().copied().unwrap_or('\0')
     }
 
@@ -68,11 +89,11 @@ impl<Input: Iterator<Item = char>> Lexer<Input> {
                 self.diagnostics.unterminated_string_literal(self.position);
                 break;
             }
-            match self.eat() {
+            match self.eat_char() {
                 '"' => {
                     break;
                 }
-                '\\' => match self.eat() {
+                '\\' => match self.eat_char() {
                     '"' => value.push('"'),
                     '\\' => value.push('\\'),
                     'n' => value.push('\n'),
@@ -89,18 +110,30 @@ impl<Input: Iterator<Item = char>> Lexer<Input> {
         }
         TokenKind::String(value)
     }
-}
 
-impl<Input: Iterator<Item = char>> Iterator for Lexer<Input> {
-    type Item = Token;
-    fn next(&mut self) -> Option<Self::Item> {
+    pub fn peek(&mut self) -> &Token {
+        if self.peeked.is_none() {
+            self.peeked = Some(self.eat());
+        }
+
+        self.peeked.as_ref().unwrap()
+    }
+
+    pub fn eat(&mut self) -> Token {
+        if let Some(token) = self.peeked.take() {
+            return token;
+        }
+
         if self.is_eof() {
-            return None;
+            return Token::new(
+                TokenKind::EOF,
+                TextSpan::new(self.position, self.position),
+            );
         }
 
         let start = self.position;
 
-        let kind = match self.eat() {
+        let kind = match self.eat_char() {
             '(' => TokenKind::LeftParen,
             ')' => TokenKind::RightParen,
             '[' => TokenKind::LeftSquare,
@@ -108,120 +141,126 @@ impl<Input: Iterator<Item = char>> Iterator for Lexer<Input> {
             '{' => TokenKind::LeftCurly,
             '}' => TokenKind::RightCurly,
             ',' => TokenKind::Comma,
-            '.' => TokenKind::Dot,
             '?' => TokenKind::Quest,
             '@' => TokenKind::At,
             '$' => TokenKind::Dollar,
-            ':' => match self.peek() {
+            '.' => match self.peek_char() {
+                '.' => {
+                    self.eat_char();
+                    TokenKind::DotDot
+                }
+                _ => TokenKind::Dot,
+            },
+            ':' => match self.peek_char() {
                 ':' => {
-                    self.eat();
+                    self.eat_char();
                     TokenKind::ColonColon
                 }
                 _ => TokenKind::Colon,
             },
-            '&' => match self.peek() {
+            '&' => match self.peek_char() {
                 '=' => {
-                    self.eat();
+                    self.eat_char();
                     TokenKind::AmpEq
                 }
                 _ => TokenKind::Amp,
             },
-            '+' => match self.peek() {
+            '+' => match self.peek_char() {
                 '=' => {
-                    self.eat();
+                    self.eat_char();
                     TokenKind::PlusEq
                 }
                 _ => TokenKind::Plus,
             },
-            '-' => match self.peek() {
+            '-' => match self.peek_char() {
                 '=' => {
-                    self.eat();
+                    self.eat_char();
                     TokenKind::MinusEq
                 }
                 '>' => {
-                    self.eat();
+                    self.eat_char();
                     TokenKind::RightArrow
                 }
                 _ => TokenKind::Minus,
             },
-            '%' => match self.peek() {
+            '%' => match self.peek_char() {
                 '=' => {
-                    self.eat();
+                    self.eat_char();
                     TokenKind::PercentEq
                 }
                 _ => TokenKind::Percent,
             },
-            '|' => match self.peek() {
+            '|' => match self.peek_char() {
                 '=' => {
-                    self.eat();
+                    self.eat_char();
                     TokenKind::BarEq
                 }
                 '>' => {
-                    self.eat();
+                    self.eat_char();
                     TokenKind::BarGt
                 }
                 _ => TokenKind::Bar,
             },
-            '^' => match self.peek() {
+            '^' => match self.peek_char() {
                 '=' => {
-                    self.eat();
+                    self.eat_char();
                     TokenKind::CaretEq
                 }
                 _ => TokenKind::Caret,
             },
-            '*' => match self.peek() {
+            '*' => match self.peek_char() {
                 '*' => {
-                    self.eat();
-                    match self.peek() {
+                    self.eat_char();
+                    match self.peek_char() {
                         '=' => {
-                            self.eat();
+                            self.eat_char();
                             TokenKind::AsteriskAsteriskEq
                         }
                         _ => TokenKind::AsteriskAsterisk,
                     }
                 }
                 '=' => {
-                    self.eat();
+                    self.eat_char();
                     TokenKind::AsteriskEq
                 }
                 _ => TokenKind::Asterisk,
             },
-            '/' => match self.peek() {
+            '/' => match self.peek_char() {
                 '=' => {
-                    self.eat();
+                    self.eat_char();
                     TokenKind::SlashEq
                 }
                 _ => TokenKind::Slash,
             },
-            '!' => match self.peek() {
+            '!' => match self.peek_char() {
                 '=' => {
-                    self.eat();
+                    self.eat_char();
                     TokenKind::BangEq
                 }
                 _ => TokenKind::Bang,
             },
-            '=' => match self.peek() {
+            '=' => match self.peek_char() {
                 '=' => {
-                    self.eat();
+                    self.eat_char();
                     TokenKind::EqualEqual
                 }
                 _ => TokenKind::Equal,
             },
-            '<' => match self.peek() {
+            '<' => match self.peek_char() {
                 '=' => {
-                    self.eat();
+                    self.eat_char();
                     TokenKind::LessEqual
                 }
                 _ => TokenKind::Less,
             },
-            '>' => match self.peek() {
+            '>' => match self.peek_char() {
                 '=' => {
-                    self.eat();
+                    self.eat_char();
                     TokenKind::GreaterEqual
                 }
                 _ => TokenKind::Greater,
             },
-            '#' => match self.peek() {
+            '#' => match self.peek_char() {
                 '-' => {
                     let mut depth = 1;
                     loop {
@@ -230,8 +269,8 @@ impl<Input: Iterator<Item = char>> Iterator for Lexer<Input> {
                                 .unterminated_multiline_comment(self.position);
                             break;
                         }
-                        let a = self.eat();
-                        let b = self.peek();
+                        let a = self.eat_char();
+                        let b = self.peek_char();
 
                         if (a, b) == ('#', '-') {
                             depth += 1;
@@ -239,28 +278,28 @@ impl<Input: Iterator<Item = char>> Iterator for Lexer<Input> {
                             depth -= 1;
                         }
                         if depth == 0 {
-                            self.eat();
+                            self.eat_char();
                             break;
                         }
                     }
                     TokenKind::Comment
                 }
                 _ => {
-                    while self.peek() != '\n' {
-                        self.eat();
+                    while self.peek_char() != '\n' {
+                        self.eat_char();
                     }
                     TokenKind::Comment
                 }
             },
             '"' => self.lex_string(),
             c @ '0'..='9' => {
-                let base = match self.peek() {
+                let base = match self.peek_char() {
                     'b' => {
-                        self.eat();
+                        self.eat_char();
                         2
                     }
                     'x' => {
-                        self.eat();
+                        self.eat_char();
                         16
                     }
                     _ => 10,
@@ -274,24 +313,24 @@ impl<Input: Iterator<Item = char>> Iterator for Lexer<Input> {
                         .map(|(i, _)| i)
                 };
                 let mut value = get_digit_value(c).unwrap();
-                while let Some(val) = get_digit_value(self.peek()) {
-                    self.eat();
+                while let Some(val) = get_digit_value(self.peek_char()) {
+                    self.eat_char();
                     value *= base;
                     value += val;
                 }
 
-                if self.peek() == '.' || self.peek() == 'e' {
+                if self.peek_char() == '.' || self.peek_char() == 'e' {
                     let mut s = value.to_string();
-                    if self.peek() == '.' {
-                        s.push(self.eat());
-                        while self.peek().is_ascii_digit() {
-                            s.push(self.eat());
+                    if self.peek_char() == '.' {
+                        s.push(self.eat_char());
+                        while self.peek_char().is_ascii_digit() {
+                            s.push(self.eat_char());
                         }
                     }
-                    if self.peek() == 'e' {
-                        s.push(self.eat());
-                        while self.peek().is_ascii_digit() {
-                            s.push(self.eat());
+                    if self.peek_char() == 'e' {
+                        s.push(self.eat_char());
+                        while self.peek_char().is_ascii_digit() {
+                            s.push(self.eat_char());
                         }
                     }
                     match s.parse() {
@@ -309,8 +348,8 @@ impl<Input: Iterator<Item = char>> Iterator for Lexer<Input> {
             w if w == '_' || w.is_alphabetic() => {
                 let mut value = String::new();
                 value.push(w);
-                while self.peek() == '_' || self.peek().is_alphanumeric() {
-                    value.push(self.eat());
+                while self.peek_char() == '_' || self.peek_char().is_alphanumeric() {
+                    value.push(self.eat_char());
                 }
 
                 if let Some(keyword) = self.keywords.get(value.as_str()) {
@@ -320,8 +359,8 @@ impl<Input: Iterator<Item = char>> Iterator for Lexer<Input> {
                 }
             }
             s if s.is_whitespace() => {
-                while self.peek().is_whitespace() {
-                    self.eat();
+                while self.peek_char().is_whitespace() {
+                    self.eat_char();
                 }
                 TokenKind::Whitespace
             }
@@ -330,6 +369,6 @@ impl<Input: Iterator<Item = char>> Iterator for Lexer<Input> {
                 TokenKind::BadCharacter
             }
         };
-        return Some(Token::new(kind, TextSpan::new(start, self.position)));
+        return Token::new(kind, TextSpan::new(start, self.position));
     }
 }

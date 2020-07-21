@@ -1,0 +1,50 @@
+type Token = struct {
+	line: u64,
+	column: u64,
+	kind: enum Kind {
+		EOF,
+		LeftParen,
+		RightParen,
+		Plus,
+		Minus,
+		Literal: enum {
+			String(string),
+			Integer(u64),
+			Float(f64),
+			Bool(bool),
+			Pair: struct {
+				first:  &Token,
+				second: &Token,
+			},
+		},
+		# ...
+	},
+}
+
+fn main() {
+	let t = Token :{
+		line: 1,
+		col: 1,
+		kind: Token::Kind::LeftParen,
+	}
+
+	if t.kind == Token::Kind::EOF :{
+		# stuff
+	}
+
+	t.kind = Token::Kind::Literal::String("kek")
+
+	t.kind = Token::Kind::Literal::Pair :{
+		first: &t,
+		second: &t,
+	}
+
+	match t.kind {
+		Token::Kind::Literal literal => match literal {
+			Token::Kind::Literal::String s =>
+				print(s)
+			Token::Kind::Literal::Pair :{ first, second } =>
+				()
+		}
+	}
+}

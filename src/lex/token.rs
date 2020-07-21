@@ -9,7 +9,6 @@ pub enum TokenKind {
     LeftCurly, RightCurly,
     LeftSquare, RightSquare,
     Comma,
-    Dot,
     Quest,
     At,
     Dollar,
@@ -33,6 +32,7 @@ pub enum TokenKind {
     RightArrow,
     BarGt,
     ColonColon,
+    Dot, DotDot,
 
     // Two char, and optional =
     AsteriskAsterisk, AsteriskAsteriskEq,
@@ -45,7 +45,7 @@ pub enum TokenKind {
     Copy,
 
     // Special
-    Whitespace, Comment, BadCharacter,
+    Whitespace, Comment, BadCharacter, EOF,
     Ident(String), String(String), Integer(usize), Float(f64),
 }
 

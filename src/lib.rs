@@ -1,6 +1,7 @@
 #![feature(box_syntax, box_patterns)]
 
 // pub mod ast;
+pub mod cst;
 pub mod diagnostics;
 pub mod lex;
 // pub mod package;

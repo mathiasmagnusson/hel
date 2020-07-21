@@ -1,5 +1,6 @@
 use std::borrow::Cow;
 
+use crate::lex::Token;
 use crate::text::TextSpan;
 
 #[derive(Default, Debug)]
@@ -36,7 +37,7 @@ impl Diagnostics {
     pub fn unterminated_multiline_comment(&mut self, position: usize) {
         self.push(Diagnostic {
             message: Cow::Borrowed("Unterminated multiline comment"),
-            span: TextSpan::single(position)
+            span: TextSpan::single(position),
         })
     }
 
@@ -51,6 +52,17 @@ impl Diagnostics {
         self.push(Diagnostic {
             message: Cow::Owned(format!("Invalid float literal")),
             span,
+        })
+    }
+
+    pub fn unexpected_token(&mut self, token: Token, expected: Option<&str>) {
+        self.push(Diagnostic {
+            message: Cow::Owned(if let Some(expected) = expected {
+                format!("Unexpected {:?} token, expected {}", token.kind(), expected)
+            } else {
+                format!("Unexpected {:?} token", token.kind())
+            }),
+            span: token.span().clone(),
         })
     }
 }

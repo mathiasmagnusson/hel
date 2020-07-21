@@ -1,0 +1,24 @@
+fn main() {
+	let known_size_array:  [u32; 3] = [0, 1, 2]
+	let also_sized_array:  [u32; 3] = [1; 3]
+	let dynamic_array:     [u32..]  = [1, 4, 9, ..]
+	let also_dynamic_size: [u32..]  = to_array(1:4)
+	let slice_in_array:    &[u32]   = dynamic_size_arr[1:2]
+	let another_slice:     &[u32]   = &known_size_array
+	let one_more_slice:    &[u32]   = &[1, 2, 3]
+	let yet_another_slice: &[u32]   = [1, 2, 3][:]
+
+	let generator: {u32} = fibonacci()
+	let generator_func: fn () -> {u32} = fibonacci
+}
+
+fn fibonacci() -> {u32} {
+	let a = 0
+	let b = 1
+	loop {
+		yield a
+		let c = a + b
+		a = b
+		b = c
+	}
+}
