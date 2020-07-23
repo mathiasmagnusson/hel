@@ -64,15 +64,15 @@ fn parse_type() {
                 TypeInner::Tuple(vec![
                     Type::new(
                         TypeInner::Reference(box Type::new(
-                                TypeInner::Path(Path::new(vec![Ident::new("a".into(), TS)])),
-                                TS,
+                            TypeInner::Path(Path::new(vec![Ident::new("a".into(), TS)])),
+                            TS,
                         )),
                         TS,
                     ),
                     Type::new(
                         TypeInner::Path(Path::new(vec![Ident::new("b".into(), TS)])),
                         TS,
-                    )
+                    ),
                 ]),
                 TS,
             ),
@@ -142,13 +142,97 @@ fn parse_type() {
                 TS,
             ),
         ),
+        (
+            "fn a -> b",
+            Type::new(
+                TypeInner::Function {
+                    args: vec![Type::new(
+                        TypeInner::Path(Path::new(vec![Ident::new("a".into(), TS)])),
+                        TS,
+                    )],
+                    returns: box Type::new(
+                        TypeInner::Path(Path::new(vec![Ident::new("b".into(), TS)])),
+                        TS,
+                    ),
+                },
+                TS,
+            ),
+        ),
+        (
+            "struct {call: fn a -> b,}",
+            Type::new(
+                TypeInner::Struct(vec![(
+                    Ident::new("call".into(), TS),
+                    Type::new(
+                        TypeInner::Function {
+                            args: vec![Type::new(
+                                TypeInner::Path(Path::new(vec![Ident::new("a".into(), TS)])),
+                                TS,
+                            )],
+                            returns: box Type::new(
+                                TypeInner::Path(Path::new(vec![Ident::new("b".into(), TS)])),
+                                TS,
+                            ),
+                        },
+                        TS,
+                    ),
+                )]),
+                TS,
+            ),
+        ),
+        (
+            "struct {
+                prev: &LinkedList,
+                next: &LinkedList,
+                value: a
+            }",
+            Type::new(
+                TypeInner::Struct(vec![
+                    (
+                        Ident::new("prev".into(), TS),
+                        Type::new(
+                            TypeInner::Reference(box Type::new(
+                                TypeInner::Path(Path::new(vec![Ident::new(
+                                    "LinkedList".into(),
+                                    TS,
+                                )])),
+                                TS,
+                            )),
+                            TS,
+                        ),
+                    ),
+                    (
+                        Ident::new("next".into(), TS),
+                        Type::new(
+                            TypeInner::Reference(box Type::new(
+                                TypeInner::Path(Path::new(vec![Ident::new(
+                                    "LinkedList".into(),
+                                    TS,
+                                )])),
+                                TS,
+                            )),
+                            TS,
+                        ),
+                    ),
+                    (
+                        Ident::new("value".into(), TS),
+                        Type::new(
+                            TypeInner::Path(Path::new(vec![Ident::new("a".into(), TS)])),
+                            TS,
+                        ),
+                    ),
+                ]),
+                TS,
+            ),
+        ),
     ];
 
     for (input, ty) in types.into_iter() {
         let mut parser = Parser::new(input.into());
-        let parsed = parser
-            .parse_type()
-            .expect(&format!("Input: {}\n{:#?}", input, parser.diagnostics()));
+        let parsed =
+            parser
+                .parse_type()
+                .expect(&format!("Input: {}\n{:#?}", input, parser.diagnostics()));
         assert!(parser.diagnostics().is_empty());
         assert_types_eq(parsed, ty);
     }
@@ -203,6 +287,24 @@ fn assert_types_eq(t1: Type, t2: Type) {
                 fail();
             }
         }
+        TypeInner::Function {
+            args: a1s,
+            returns: r1,
+        } => {
+            if let TypeInner::Function {
+                args: a2s,
+                returns: r2,
+            } = t2.inner
+            {
+                assert_eq!(a1s.len(), a2s.len());
+                for (a1, a2) in Iterator::zip(a1s.into_iter(), a2s.into_iter()) {
+                    assert_types_eq(a1, a2);
+                }
+                assert_types_eq(*r1, *r2);
+            } else {
+                fail();
+            }
+        }
         TypeInner::Generator {
             yields: y1,
             returns: r1,
@@ -221,6 +323,16 @@ fn assert_types_eq(t1: Type, t2: Type) {
                 fail();
             }
         }
-        _ => unimplemented!(),
+        TypeInner::Struct(i1s) => {
+            if let TypeInner::Struct(i2s) = t2.inner {
+                assert_eq!(i1s.len(), i2s.len());
+                for ((n1, i1), (n2, i2)) in Iterator::zip(i1s.into_iter(), i2s.into_iter()) {
+                    assert_eq!(n1, n2);
+                    assert_types_eq(i1, i2);
+                }
+            } else {
+                fail();
+            }
+        }
     }
 }

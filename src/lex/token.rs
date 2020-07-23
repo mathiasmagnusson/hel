@@ -1,7 +1,44 @@
 use derive_getters::Getters;
+use std::mem;
 
 use crate::text::TextSpan;
 
+#[derive(Debug, Clone, Getters)]
+pub struct Token {
+    kind: TokenKind,
+    span: TextSpan,
+    whitespace_before: bool,
+    whitespace_after: bool,
+}
+
+impl Token {
+    pub const fn new(
+        kind: TokenKind,
+        span: TextSpan,
+        whitespace_before: bool,
+        whitespace_after: bool,
+    ) -> Self {
+        Self {
+            kind,
+            span,
+            whitespace_before,
+            whitespace_after,
+        }
+    }
+
+    /// Gives ownership of the `TokenKind`, replacing it by `TokenKind::Taken`
+    pub fn take_kind(&mut self) -> TokenKind {
+        mem::replace(&mut self.kind, TokenKind::Taken)
+    }
+}
+
+impl Into<TextSpan> for &Token {
+    fn into(self) -> TextSpan {
+        self.span
+    }
+}
+
+#[rustfmt::skip]
 #[derive(Debug, Clone, PartialEq)]
 pub enum TokenKind {
     // One char
@@ -42,24 +79,8 @@ pub enum TokenKind {
     And, Or, True, False,
     Function, Type, Struct, Import,
     If, Then, Else, For, In, Loop, Return, Defer,
-    Copy,
 
     // Special
-    Whitespace, Comment, BadCharacter, EOF,
+    EOF, Taken,
     Ident(String), String(String), Integer(usize), Float(f64),
-}
-
-#[derive(Debug, Clone, Getters)]
-pub struct Token {
-    kind: TokenKind,
-    span: TextSpan,
-}
-
-impl Token {
-    pub const fn new(kind: TokenKind, span: TextSpan) -> Self {
-        Self {
-            kind,
-            span
-        }
-    }
 }

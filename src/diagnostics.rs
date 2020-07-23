@@ -1,6 +1,6 @@
 use std::borrow::Cow;
 
-use crate::lex::Token;
+use crate::lex::{Token, TokenKind};
 use crate::text::TextSpan;
 
 #[derive(Default, Debug)]
@@ -17,6 +17,12 @@ impl std::ops::DerefMut for Diagnostics {
     fn deref_mut(&mut self) -> &mut Self::Target {
         &mut self.0
     }
+}
+
+#[derive(Debug)]
+pub struct Diagnostic {
+    message: Cow<'static, str>,
+    span: TextSpan,
 }
 
 impl Diagnostics {
@@ -55,20 +61,55 @@ impl Diagnostics {
         })
     }
 
-    pub fn unexpected_token(&mut self, token: Token, expected: Option<&str>) {
-        self.push(Diagnostic {
-            message: Cow::Owned(if let Some(expected) = expected {
-                format!("Unexpected {:?} token, expected {}", token.kind(), expected)
-            } else {
-                format!("Unexpected {:?} token", token.kind())
-            }),
-            span: token.span().clone(),
-        })
+    pub fn unexpected_token(&mut self, token: Token) -> UnexpectedToken {
+        UnexpectedToken { diagnostics: self, token }
     }
 }
 
-#[derive(Debug)]
-pub struct Diagnostic {
-    message: Cow<'static, str>,
-    span: TextSpan,
+#[must_use]
+pub struct UnexpectedToken<'d> {
+    diagnostics: &'d mut Diagnostics,
+    token: Token,
+}
+
+impl<'d> UnexpectedToken<'d> {
+    pub fn expected_token(self, expected: &TokenKind) {
+        self.diagnostics.push(Diagnostic {
+            message: Cow::Owned(format!(
+                "Unexpected {:?} token, expected {:?}",
+                self.token, expected
+            )),
+            span: self.token.span().clone(),
+        })
+    }
+
+    pub fn expected_tokens(self, expected: &[TokenKind]) {
+        let mut message: Cow<'_, str> = Cow::Owned(format!("Unexpected {:?} token", self.token));
+        if !expected.is_empty() {
+            message.to_mut().push_str(", expected ");
+            for (i, ex) in expected.iter().enumerate() {
+                message.to_mut().push_str(&format!("{:?}", ex));
+                if i + 2 < expected.len() {
+                    message.to_mut().push_str(", ");
+                } else if i + 2 == expected.len() {
+                    message.to_mut().push_str(", or ");
+                }
+            }
+        }
+
+        self.diagnostics.push(Diagnostic {
+            message,
+            span: self.token.span().clone(),
+        })
+    }
+
+    pub fn expected(self, expected: &str) {
+        self.diagnostics.push(Diagnostic {
+            message: Cow::Owned(format!(
+                "Unexpected {:?} token, expected {}",
+                self.token, expected
+            )),
+            span: self.token.span().clone(),
+        })
+    }
 }

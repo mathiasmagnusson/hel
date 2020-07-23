@@ -1,58 +1,45 @@
-// use hel::ast::{File, Parse};
-// use hel::lex::{Lexer, TokenStream};
-// use hel::package::Package;
+use std::{fs, process, io};
 
-// fn run(input: &str) {
-//     let lexer = Lexer::new(input);
-//     let tokens;
-//     match lexer.tokenize() {
-//         Ok(t) => tokens = t,
-//         Err(errors) => {
-//             for err in errors.0 {
-//                 eprintln!("{}", err);
-//             }
-//             return;
-//         }
-//     }
+use hel::lex::Lexer;
+use hel::cst::Parser;
 
-//     let tokens = TokenStream::from(tokens.as_ref());
+fn main() {
+    let args: Vec<String> = std::env::args().collect();
 
-//     let file = match File::parse(tokens) {
-//         Ok((_, file)) => file,
-//         Err(err) => return eprintln!("{}", err),
-//     };
+    if let Some(filename) = args.get(1) {
+        let input = match fs::read_to_string(filename) {
+            Ok(input) => input,
+            Err(err) => {
+                eprintln!("{}", err);
+                process::exit(-1);
+            }
+        };
+        let mut parser = Parser::new(Lexer::from(&input));
+        eprintln!("{:#?}", parser.parse_expr());
+    } else {
+        let mut line = String::new();
+        while line != "exit" {
+            match io::stdin().read_line(&mut line) {
+                Ok(bytes) => if bytes == 0 { return; }
+                Err(err) => {
+                    eprintln!("{}", err);
+                    process::exit(-1);
+                }
+            }
 
-//     println!("{:#?}", file);
-// }
+            let mut parser = Parser::new(Lexer::from(&line));
 
-// fn repl() -> anyhow::Result<()> {
-//     use std::io::{self, BufRead, Write};
+            let result = parser.parse_type();
 
-//     print!("> ");
-//     io::stdout().flush()?;
-//     for line in io::stdin().lock().lines() {
-//         let line = line?;
+            for diagnostic in parser.diagnostics().iter() {
+                eprintln!("{:?}", diagnostic);
+            }
 
-//         run(&line);
-//         print!("> ");
-//         io::stdout().flush()?;
-//     }
+            if let Some(result) = result {
+                println!("{:#?}", result);
+            }
 
-//     println!("\nExiting");
-//     Ok(())
-// }
-
-// fn main() -> anyhow::Result<()> {
-//     let args: Vec<String> = std::env::args().collect();
-
-//     if let Some(filename) = args.get(1) {
-//         let package = Package::new(filename)?;
-//         eprintln!("{:#?}", package);
-//     } else {
-//         if let Err(err) = repl() {
-//             eprintln!("{}", err);
-//         }
-//     }
-
-//     Ok(())
-// }
+            line.clear();
+        }
+    }
+}

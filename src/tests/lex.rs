@@ -17,16 +17,24 @@ fn token_pairs() {
             if require_separation(kind1, kind2) {
                 let input = &format!("{} {}", text1, text2);
                 let mut lexer = Lexer::from(input);
-                assert_eq!(lexer.eat().kind(), kind1);
-                assert_eq!(*lexer.eat().kind(), TokenKind::Whitespace);
-                assert_eq!(lexer.eat().kind(), kind2);
+                let [first, second] = [lexer.eat(), lexer.eat()];
+
+                assert_eq!(first.kind(), kind1);
+                assert!(!first.whitespace_before());
+                assert!(first.whitespace_after());
+
+                assert_eq!(second.kind(), kind2);
+                assert!(second.whitespace_before());
+                assert!(!second.whitespace_after());
+
                 assert_eq!(*lexer.eat().kind(), TokenKind::EOF);
                 assert!(lexer.diagnostics().is_empty());
             } else {
                 let input = &format!("{}{}", text1, text2);
                 let mut lexer = Lexer::from(input);
-                assert_eq!(lexer.eat().kind(), kind1);
-                assert_eq!(lexer.eat().kind(), kind2);
+                let [first, second] = [lexer.eat(), lexer.eat()];
+                assert_eq!(first.kind(), kind1);
+                assert_eq!(second.kind(), kind2);
                 assert_eq!(*lexer.eat().kind(), TokenKind::EOF);
                 assert!(lexer.diagnostics().is_empty());
             }
@@ -44,23 +52,9 @@ fn whitespace() {
                     for &c5 in whitespace {
                         let whitespace = &format!("{}{}{}{}{}", c1, c2, c3, c4, c5);
                         let mut lexer = Lexer::from(whitespace);
-                        assert_eq!(*lexer.eat().kind(), TokenKind::Whitespace);
-                        assert_eq!(*lexer.eat().kind(), TokenKind::EOF);
-                        assert!(lexer.diagnostics().is_empty());
-                    }
-                }
-            }
-        }
-    }
-    for &c1 in whitespace {
-        for &c2 in whitespace {
-            for &c3 in whitespace {
-                for &c4 in whitespace {
-                    for &c5 in whitespace {
-                        let whitespace = &format!("{}{}{}{}{}", c1, c2, c3, c4, c5);
-                        let mut lexer = Lexer::from(whitespace);
-                        assert_eq!(*lexer.eat().kind(), TokenKind::Whitespace);
-                        assert_eq!(*lexer.eat().kind(), TokenKind::EOF);
+                        let eof_token = lexer.eat();
+                        assert_eq!(*eof_token.kind(), TokenKind::EOF);
+                        assert!(eof_token.whitespace_before());
                         assert!(lexer.diagnostics().is_empty());
                     }
                 }
@@ -150,8 +144,7 @@ fn is_keyword(kind: &TokenKind) -> bool {
         || *kind == In
         || *kind == Loop
         || *kind == Return
-        || *kind == Defer
-        || *kind == Copy;
+        || *kind == Defer;
 }
 
 fn tokens_with_values() -> [(&'static str, TokenKind); 7] {
@@ -166,7 +159,7 @@ fn tokens_with_values() -> [(&'static str, TokenKind); 7] {
     ]
 }
 
-fn basic_tokens() -> [(&'static str, TokenKind); 61] {
+fn basic_tokens() -> [(&'static str, TokenKind); 60] {
     [
         ("(", TokenKind::LeftParen),
         (")", TokenKind::RightParen),
@@ -232,6 +225,5 @@ fn basic_tokens() -> [(&'static str, TokenKind); 61] {
         ("loop", TokenKind::Loop),
         ("return", TokenKind::Return),
         ("defer", TokenKind::Defer),
-        ("copy", TokenKind::Copy),
     ]
 }

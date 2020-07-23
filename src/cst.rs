@@ -6,10 +6,10 @@ use crate::text::{TextSpan, WithSpan};
 
 mod new;
 mod operators;
-mod parse;
+mod parser;
 mod span;
 
-pub use parse::Parser;
+pub use parser::Parser;
 
 use operators::{AssignmentOperator, BinaryOperator, UnaryOperator};
 
@@ -109,23 +109,25 @@ pub enum TypeInner {
     SizedArray(Box<Type>, Expr),    // [type; size]
     DynamicArray(Box<Type>),        // [type..]
     Slice(Box<Type>),               // &[type]
-    // fn (arg1, arg2) -> ret
+    // fn (arg1, arg2) -> ret  or  fn arg -> ret
     Function {
         args: Vec<Type>,
         returns: Box<Type>,
     },
-    // {yields} or {yields, returns}
+    // {yields}  or  {yields, returns}
     Generator {
         yields: Box<Type>,
         returns: Option<Box<Type>>,
     },
     // The following are only allowed in TypeDecl, Struct, or Enum:
     Struct(Vec<(Ident, Type)>),
-    // Enum(Vec<(Ident, Option<Type>)>), TODO!
+    // TODO: Enum(Vec<(Ident, Option<Type>)>),
 }
 
+type Expr = WithSpan<ExprInner>;
+
 #[derive(Debug, Clone)]
-pub enum Expr {
+pub enum ExprInner {
     Path(Path),
     Literal(Literal),
     Binary {
@@ -153,7 +155,7 @@ pub enum Expr {
     SizedArray(Vec<Expr>, Option<usize>), // [val1, val2] or [val; size]
     DynamicArray(Vec<Expr>),              // [1, 2, 3, ..]
     Struct {
-        ty: Path,
+        path: Path,
         values: Vec<(Ident, Expr)>,
     },
     If {
@@ -173,12 +175,15 @@ pub enum Expr {
 pub enum Literal {
     String(String),
     Integer(usize),
+    Float(f64),
     Bool(bool),
     Null,
 }
 
+type Stmt = WithSpan<StmtInner>;
+
 #[derive(Debug, Clone)]
-pub enum Stmt {
+pub enum StmtInner {
     Expr(Expr),
     Let {
         ident: Ident,

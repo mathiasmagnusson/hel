@@ -6,47 +6,18 @@ pub struct TextSpan {
     end: usize,
 }
 
-#[derive(Debug, Clone)]
-pub struct WithSpan<T> {
-    pub inner: T,
-    pub span: TextSpan,
-}
-
-impl<T> WithSpan<T> {
-    pub fn new(inner: T, span: TextSpan) -> Self {
-        Self { inner, span }
-    }
-}
-
-impl<T> WithSpan<T> {
-    pub fn span(&self) -> &TextSpan {
-        &self.span
-    }
-}
-
-impl<T> std::ops::Deref for WithSpan<T> {
-    type Target = T;
-    fn deref(&self) -> &Self::Target {
-        &self.inner
-    }
-}
-
-impl<T> std::ops::DerefMut for WithSpan<T> {
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        &mut self.inner
+impl From<(&Self, &Self)> for TextSpan {
+    fn from((t1, t2): (&Self, &Self)) -> Self {
+        Self {
+            start: usize::min(t1.start(), t2.start()),
+            end: usize::max(t1.end(), t2.end()),
+        }
     }
 }
 
 impl TextSpan {
     pub const fn new(start: usize, end: usize) -> Self {
         Self { start, end }
-    }
-
-    pub fn combine(&self, other: &Self) -> Self {
-        Self {
-            start: usize::min(self.start(), other.start()),
-            end: usize::max(self.end(), other.end()),
-        }
     }
 
     pub fn single(position: usize) -> Self {
@@ -66,6 +37,37 @@ impl TextSpan {
 
     pub fn length(&self) -> usize {
         self.end - self.start
+    }
+}
+
+#[derive(Debug, Clone)]
+pub struct WithSpan<T> {
+    pub inner: T,
+    pub span: TextSpan,
+}
+
+impl<T> WithSpan<T> {
+    pub fn new<TS: Into<TextSpan>>(inner: T, span: TS) -> Self {
+        Self { inner, span: span.into() }
+    }
+}
+
+impl<T> WithSpan<T> {
+    pub fn span(&self) -> &TextSpan {
+        &self.span
+    }
+}
+
+impl<T> std::ops::Deref for WithSpan<T> {
+    type Target = T;
+    fn deref(&self) -> &Self::Target {
+        &self.inner
+    }
+}
+
+impl<T> std::ops::DerefMut for WithSpan<T> {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.inner
     }
 }
 

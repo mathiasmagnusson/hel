@@ -11,4 +11,3 @@ impl Path {
         TextSpan::new(self[0].span().start(), self[self.len() - 1].span().end())
     }
 }
-

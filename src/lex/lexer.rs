@@ -13,6 +13,7 @@ pub struct Lexer<'a> {
     diagnostics: Diagnostics,
     keywords: HashMap<&'static str, TokenKind>,
     peeked: Option<Token>,
+    just_saw_whitespace: bool,
 }
 
 impl<'a> From<&'a String> for Lexer<'a> {
@@ -23,6 +24,7 @@ impl<'a> From<&'a String> for Lexer<'a> {
             diagnostics: Diagnostics::default(),
             keywords: Self::get_keywords(),
             peeked: None,
+            just_saw_whitespace: false,
         }
     }
 }
@@ -35,6 +37,7 @@ impl<'a> From<&'a str> for Lexer<'a> {
             diagnostics: Diagnostics::default(),
             keywords: Self::get_keywords(),
             peeked: None,
+            just_saw_whitespace: false,
         }
     }
 }
@@ -64,7 +67,6 @@ impl<'a> Lexer<'a> {
             ("loop",   TokenKind::Loop),
             ("return", TokenKind::Return),
             ("defer",  TokenKind::Defer),
-            ("copy",   TokenKind::Copy),
             ("import", TokenKind::Import),
         ].iter().cloned().collect()
     }
@@ -111,24 +113,14 @@ impl<'a> Lexer<'a> {
         TokenKind::String(value)
     }
 
-    pub fn peek(&mut self) -> &Token {
-        if self.peeked.is_none() {
-            self.peeked = Some(self.eat());
-        }
-
-        self.peeked.as_ref().unwrap()
-    }
-
-    pub fn eat(&mut self) -> Token {
-        if let Some(token) = self.peeked.take() {
-            return token;
-        }
-
+    fn process(&mut self) -> Option<Token> {
         if self.is_eof() {
-            return Token::new(
+            return Some(Token::new(
                 TokenKind::EOF,
                 TextSpan::new(self.position, self.position),
-            );
+                self.just_saw_whitespace,
+                false,
+            ));
         }
 
         let start = self.position;
@@ -282,13 +274,13 @@ impl<'a> Lexer<'a> {
                             break;
                         }
                     }
-                    TokenKind::Comment
+                    return None;
                 }
                 _ => {
                     while self.peek_char() != '\n' {
                         self.eat_char();
                     }
-                    TokenKind::Comment
+                    return None;
                 }
             },
             '"' => self.lex_string(),
@@ -338,7 +330,8 @@ impl<'a> Lexer<'a> {
                         Err(_err) => {
                             self.diagnostics
                                 .invalid_float_literal(TextSpan::new(start, self.position));
-                            TokenKind::BadCharacter
+                            self.just_saw_whitespace = false;
+                            return None;
                         }
                     }
                 } else {
@@ -362,13 +355,48 @@ impl<'a> Lexer<'a> {
                 while self.peek_char().is_whitespace() {
                     self.eat_char();
                 }
-                TokenKind::Whitespace
+
+                self.just_saw_whitespace = true;
+                return None;
             }
             c => {
                 self.diagnostics.unexpected_character(self.position, c);
-                TokenKind::BadCharacter
+
+                self.just_saw_whitespace = false;
+                return None;
             }
         };
-        return Token::new(kind, TextSpan::new(start, self.position));
+
+        let whitespace_before = self.just_saw_whitespace;
+        let whitespace_after = self.peek_char().is_whitespace();
+
+        self.just_saw_whitespace = false;
+
+        return Some(Token::new(
+            kind,
+            TextSpan::new(start, self.position),
+            whitespace_before,
+            whitespace_after,
+        ));
+    }
+
+    pub fn peek(&mut self) -> &Token {
+        if self.peeked.is_none() {
+            self.peeked = Some(self.eat());
+        }
+
+        self.peeked.as_ref().unwrap()
+    }
+
+    pub fn eat(&mut self) -> Token {
+        if let Some(token) = self.peeked.take() {
+            return token;
+        }
+
+        loop {
+            if let Some(token) = self.process() {
+                break token;
+            }
+        }
     }
 }
